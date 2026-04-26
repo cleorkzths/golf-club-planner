@@ -233,7 +233,7 @@
   <div class="main-tab-bar">
     <button class="main-tab active" onclick="switchMainTab('planner')">⛳ Planner</button>
     <button class="main-tab" onclick="switchMainTab('holes')">🗺 Holes</button>
-    <button class="main-tab" onclick="switchMainTab('slope')">⛰ Slope</button>
+    <button class="main-tab" onclick="switchMainTab('slope')">⛰ Slope/Alt</button>
     <button class="main-tab" onclick="switchMainTab('weather')">🌤 Weather</button>
     <button class="main-tab" onclick="switchMainTab('about')">About</button>
   </div>
@@ -450,9 +450,9 @@
       <div class="slope-empty" id="slopeEmpty">Fetch yardages for a course to see slope data.</div>
       <div id="slopeChartsContent" style="display:none;" class="slope-charts-grid">
         <div class="card">
-          <div class="card-head"><h2>Altitude</h2></div>
-          <div class="card-body" id="slopeAltCard">
-            <p style="color:var(--muted);font-size:.88rem;">Set a course altitude in Step 1 to see adjustment here.</p>
+          <div class="card-head"><h2>Altitude Effect</h2></div>
+          <div class="card-body" id="altitudeCard">
+            <p style="color:var(--muted);font-size:.88rem;">Generate a round plan to see altitude effect per club.</p>
           </div>
         </div>
         <div class="card">
@@ -480,12 +480,6 @@
   <div id="tab-weather" style="display:none;padding:.5rem 0 2rem;">
     <div id="wxChartsEmpty" class="hole-diagrams-empty">Fetch weather data (Step 2) to see charts.</div>
     <div id="wxChartsContent" style="display:none;">
-      <div class="card" style="margin-bottom:1.5rem;">
-        <div class="card-head"><h2>Altitude Effect</h2></div>
-        <div class="card-body" id="altitudeCard">
-          <p style="color:var(--muted);font-size:.88rem;">Generate a round plan to see altitude effect per club.</p>
-        </div>
-      </div>
       <div class="wx-charts-grid">
         <div class="card">
           <div class="card-head"><h2>Wind Direction &amp; Speed</h2></div>
@@ -1830,23 +1824,7 @@ function renderSlopeCharts(){
   if(!holeData.length){empty.style.display='';content.style.display='none';return;}
   empty.style.display='none';content.style.display='';
 
-  // Altitude info card
-  const altCard=document.getElementById('slopeAltCard');
-  if(altCard){
-    const altFt=parseFloat(document.getElementById('courseAltitude').value)||0;
-    if(altFt>0){
-      const af=altFactor(altFt);
-      altCard.innerHTML=`
-        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;">
-          <div class="stat-box" style="min-width:120px;"><div class="stat-val">${altFt.toLocaleString()} ft</div><div class="stat-lbl">Course Altitude</div></div>
-          <div class="stat-box" style="min-width:120px;"><div class="stat-val">${pct1((af-1)*100)}</div><div class="stat-lbl">Distance Boost</div></div>
-          <p style="font-size:.82rem;color:var(--muted);max-width:340px;margin:0;">+2% carry distance per 1,000 ft above sea level — thinner air reduces drag on every shot.</p>
-        </div>`;
-    }else{
-      altCard.innerHTML='<p style="color:var(--muted);font-size:.88rem;">Set a course altitude in Step 1 to see adjustment here. Altitude auto-fills from elevation data when you fetch yardages.</p>';
-    }
-  }
-
+  renderAltitudeCard();
   renderSlopeBarChart(holeData);
   renderSlopeHistogram(holeData);
 }
@@ -2109,7 +2087,7 @@ function switchMainTab(name){
   document.getElementById('tab-about').style.display=name==='about'?'':'none';
   document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().includes(name)));
   document.getElementById('tocNav').style.display=name==='planner'?'':'none';
-  if(name==='weather'){renderWeatherCharts();renderAltitudeCard();}
+  if(name==='weather')renderWeatherCharts();
   if(name==='slope')renderSlopeCharts();
   if(name==='holes'){
     ensureLeaflet().then(()=>{
