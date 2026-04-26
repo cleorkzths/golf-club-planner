@@ -248,6 +248,7 @@
       <div class="form-grid">
         <div class="form-group"><label for="playDate">Date of Play</label><input type="date" id="playDate"></div>
         <div class="form-group"><label for="playTime">Tee Time</label><input type="time" id="playTime" value="09:00"></div>
+        <div class="form-group"><label for="courseAltitude">Course Altitude (ft)</label><input type="number" id="courseAltitude" value="0" min="0" max="14000" step="50" title="Feet above sea level — auto-filled from elevation data when available. +2% carry per 1,000 ft." oninput="adjNote()"></div>
         <div class="form-group">
           <label for="teeColor">Tee</label>
           <select id="teeColor" onchange="onTeeChange()">
@@ -407,7 +408,7 @@
               <th>Hole</th><th>Par</th><th>Yds</th>
               <th>#</th><th>Club</th><th>Auto</th>
               <th>Base</th><th title="Temperature adjustment">+Temp</th>
-              <th title="Wind adjustment">+Wind</th><th title="Elevation adjustment (shot 1 only)">+Elev</th>
+              <th title="Wind adjustment">+Wind</th><th title="Altitude adjustment (2% per 1,000 ft)">+Alt</th><th title="Elevation adjustment (shot 1 only)">+Elev</th>
               <th>Carry</th><th>Roll</th><th>Total</th>
               <th>Left</th><th>Wind</th>
             </tr>
@@ -438,6 +439,12 @@
   <div id="tab-weather" style="display:none;padding:.5rem 0 2rem;">
     <div id="wxChartsEmpty" class="hole-diagrams-empty">Fetch weather data (Step 2) to see charts.</div>
     <div id="wxChartsContent" style="display:none;">
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-head"><h2>Altitude Effect</h2></div>
+        <div class="card-body" id="altitudeCard">
+          <p style="color:var(--muted);font-size:.88rem;">Generate a round plan to see altitude effect per club.</p>
+        </div>
+      </div>
       <div class="wx-charts-grid">
         <div class="card">
           <div class="card-head"><h2>Wind Direction &amp; Speed</h2></div>
@@ -614,6 +621,7 @@ const ON_GREEN_THRESHOLD=20; // yards — shots with remaining ≤ this are "on 
 /* ══ STATE ══ */
 let bagReady=false,saveTimer=null,tessLoaded=false;
 let courseLat=null,courseLon=null;
+let courseAltitudeFt=0;
 let roundPlan=null;
 let lastCourseItem=null;
 let lastWxChartData=null;
@@ -1115,6 +1123,15 @@ async function fetchElevations(holes){
     }catch(e){console.warn('Open-Meteo elevation fallback failed:',e);}
   }
 
+  // Auto-set course altitude from average tee elevation
+  const teeElevs=nums.map(n=>holes[n].teeElev).filter(v=>v!==undefined);
+  if(teeElevs.length){
+    const avgM=teeElevs.reduce((a,b)=>a+b,0)/teeElevs.length;
+    courseAltitudeFt=Math.round(avgM*3.28084/50)*50; // round to nearest 50 ft
+    document.getElementById('courseAltitude').value=courseAltitudeFt;
+    adjNote();
+  }
+
   // Build elevation profiles and overall badge adjustment
   let profileCount=0,fwPtCount=0;
   nums.forEach(n=>{
@@ -1372,6 +1389,7 @@ function updateHoleWinds(){
   });
 }
 function tempFactor(f){return 1+(f-70)/1000;}
+function altFactor(ft){return 1+ft/50000;}
 function windFactor(spd,cond){const s=Math.min(spd,40),c=cond.startsWith('crosswind')?'crosswind':cond;switch(c){case'headwind':return Math.max(0.75,1-0.01*s);case'tailwind':return Math.min(1.2,1+0.005*s);case'crosswind':return Math.max(0.85,1-0.0025*s);default:return 1;}}
 function rollWindMult(cond){const c=cond.startsWith('crosswind')?'crosswind':cond;return{headwind:0.5,tailwind:1.5,crosswind:1.0,calm:1.0}[c]??1.0;}
 function destinationPoint(lat,lon,brg,yds){const R=6371000,d=yds*0.9144,b=brg*Math.PI/180;const φ1=lat*Math.PI/180,λ1=lon*Math.PI/180;const φ2=Math.asin(Math.sin(φ1)*Math.cos(d/R)+Math.cos(φ1)*Math.sin(d/R)*Math.cos(b));const λ2=λ1+Math.atan2(Math.sin(b)*Math.sin(d/R)*Math.cos(φ1),Math.cos(d/R)-Math.sin(φ1)*Math.sin(φ2));return{lat:φ2*180/Math.PI,lon:((λ2*180/Math.PI)+540)%360-180};}
@@ -1379,9 +1397,11 @@ function elevDeltaToYards(deltaM){return Math.round(deltaM<0?(-deltaM)*0.75*1.09
 function interpolateElev(profile,dist){if(!profile||!profile.length)return null;if(dist<=profile[0].dist)return profile[0].elev;if(dist>=profile[profile.length-1].dist)return profile[profile.length-1].elev;for(let i=0;i<profile.length-1;i++){if(dist>=profile[i].dist&&dist<=profile[i+1].dist){const t=(dist-profile[i].dist)/(profile[i+1].dist-profile[i].dist);return profile[i].elev+t*(profile[i+1].elev-profile[i].elev);}}return profile[profile.length-1].elev;}
 function adjNote(){
   const f=parseFloat(document.getElementById('temperature').value)||72,spd=parseFloat(document.getElementById('windSpeed').value)||0,dir=document.getElementById('windDir').value,cond=document.getElementById('windEffect').value;
-  const tf=tempFactor(f),wf=windFactor(spd,cond),net=tf*wf;
+  const altFt=parseFloat(document.getElementById('courseAltitude').value)||0;
+  const tf=tempFactor(f),wf=windFactor(spd,cond),af=altFactor(altFt),net=tf*wf*af;
   const sign=n=>(n>=0?'+':'')+n,label={calm:'Calm',crosswind:'Crosswind','crosswind-left':'Left Cross','crosswind-right':'Right Cross',headwind:'Headwind',tailwind:'Tailwind'}[cond]||cond;
-  document.getElementById('adjNote').innerHTML=`<strong>Adjustments:</strong> Temp ${f}°F → <strong>${sign(Math.round((tf-1)*100))}%</strong> &nbsp;|&nbsp; Wind ${spd} mph ${dir} (${label}) → <strong>${sign(Math.round((wf-1)*100))}%</strong> &nbsp;|&nbsp; <strong>Net: ${sign(Math.round((net-1)*100))}%</strong>`;
+  const altPart=altFt>0?` &nbsp;|&nbsp; Altitude ${altFt.toLocaleString()} ft → <strong>${sign(Math.round((af-1)*100))}%</strong>`:'';
+  document.getElementById('adjNote').innerHTML=`<strong>Adjustments:</strong> Temp ${f}°F → <strong>${sign(Math.round((tf-1)*100))}%</strong> &nbsp;|&nbsp; Wind ${spd} mph ${dir} (${label}) → <strong>${sign(Math.round((wf-1)*100))}%</strong>${altPart} &nbsp;|&nbsp; <strong>Net: ${sign(Math.round((net-1)*100))}%</strong>`;
   if(document.querySelector('#holeBody tr[data-bearing]'))updateHoleWinds();
 }
 const adjustNote=adjNote;
@@ -1506,7 +1526,7 @@ document.getElementById('imageInput').addEventListener('change',async function()
 });
 
 /* ══ ROUND GENERATION ══ */
-function computeShots(holeData,clubs,globalTf,globalWindSpd,globalWindCond,rollPct,overrides={}){
+function computeShots(holeData,clubs,globalTf,globalWindSpd,globalWindCond,rollPct,overrides={},altFt=0){
   // Per-hole weather overrides global
   const hTemp=holeData.wxTemp;
   const tf=hTemp!==null?tempFactor(hTemp):globalTf;
@@ -1522,11 +1542,12 @@ function computeShots(holeData,clubs,globalTf,globalWindSpd,globalWindCond,rollP
     windCond=globalWindCond;
   }
   const wf=windFactor(windSpd,windCond);
+  const af=altFactor(altFt);
   let remaining=holeData.distance;
   if(remaining<=0)return[];
   let cumDist=0;
 
-  const allEff=clubs.filter(c=>c.distance>0).map(c=>({name:c.name,base:c.distance,eff:Math.round(c.distance*tf*wf)})).sort((a,b)=>b.eff-a.eff);
+  const allEff=clubs.filter(c=>c.distance>0).map(c=>({name:c.name,base:c.distance,eff:Math.round(c.distance*tf*wf*af)})).sort((a,b)=>b.eff-a.eff);
 
   const shots=[];
   for(let sn=1;sn<=10;sn++){
@@ -1551,6 +1572,7 @@ function computeShots(holeData,clubs,globalTf,globalWindSpd,globalWindCond,rollP
     // Itemized adjustments
     const tempAdj=Math.round(chosen.base*(tf-1));
     const windAdj=Math.round(chosen.base*tf*(wf-1));
+    const altAdj=Math.round(chosen.base*tf*wf*(af-1));
     // Per-shot elevation: interpolate from the hole's elevation profile at cumulative distance
     let shotElevAdj=0;
     if(holeData.elevProfile){const sE=interpolateElev(holeData.elevProfile,cumDist),eE=interpolateElev(holeData.elevProfile,cumDist+carry);if(sE!==null&&eE!==null)shotElevAdj=elevDeltaToYards(eE-sE);}
@@ -1559,7 +1581,7 @@ function computeShots(holeData,clubs,globalTf,globalWindSpd,globalWindCond,rollP
     const total=carry+roll+shotElevAdj;
     cumDist+=total;
     const left=remaining-total;
-    shots.push({shotNum:sn,club:chosen.name,isAuto:!ov,base:chosen.base,tempAdj,windAdj,elevAdj:shotElevAdj,carry,roll,total,remaining:left,windCond,windSpd,windDir:windDir||'—',temp:hTemp??Math.round((tf-1)*1000+70),isApproach});
+    shots.push({shotNum:sn,club:chosen.name,isAuto:!ov,base:chosen.base,tempAdj,windAdj,altAdj,elevAdj:shotElevAdj,carry,roll,total,remaining:left,windCond,windSpd,windDir:windDir||'—',temp:hTemp??Math.round((tf-1)*1000+70),isApproach});
     remaining=left;
     if(remaining<=0)break;
   }
@@ -1574,18 +1596,20 @@ function generateRound(){
   const windSpd=parseFloat(document.getElementById('windSpeed').value)||0;
   const windDir=document.getElementById('windDir').value,windCond=document.getElementById('windEffect').value;
   const rollPct=parseFloat(document.getElementById('rollPct').value)||5;
+  const altFt=parseFloat(document.getElementById('courseAltitude').value)||0;
   if(!clubs.length){alert('Please enter club distances in Step 3.');return;}
   const played=holes.filter(h=>h.distance>0);
   if(!played.length){alert('Please enter hole distances in Step 4.');return;}
   const globalTf=tempFactor(f);
+  const af=altFactor(altFt);
   const holeResults=played.map(hole=>{
-    const shots=computeShots(hole,clubs,globalTf,windSpd,windCond,rollPct,{});
+    const shots=computeShots(hole,clubs,globalTf,windSpd,windCond,rollPct,{},altFt);
     return{hole:hole.hole,par:hole.par,holeDist:hole.distance,elevAdjYards:hole.elevAdjYards,wxTemp:hole.wxTemp,wxWindSpd:hole.wxWindSpd,wxWindDir:hole.wxWindDir,shots,overrides:{}};
   });
-  roundPlan={clubs,holes:played,globalTf,windSpd,windCond,rollPct,holeResults};
+  roundPlan={clubs,holes:played,globalTf,windSpd,windCond,rollPct,altFt,holeResults};
   const dateStr=date?new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'';
   document.getElementById('resTitle').textContent=`Round Plan — ${course}`;
-  document.getElementById('resSubtitle').textContent=[dateStr,tee+' Tees',`${f}°F`,windSpd>0?`${windSpd} mph ${windDir}`:'Calm'].filter(Boolean).join(' · ');
+  document.getElementById('resSubtitle').textContent=[dateStr,tee+' Tees',`${f}°F`,windSpd>0?`${windSpd} mph ${windDir}`:'Calm',altFt>0?`${altFt.toLocaleString()} ft elevation`:null].filter(Boolean).join(' · ');
   const totalShots=holeResults.reduce((s,h)=>s+h.shots.length,0);
   const usage=countUsage(holeResults);
   const sign=n=>(n>=0?'+':'')+n,gps=document.querySelectorAll('#holeBody tr[data-bearing]').length;
@@ -1595,8 +1619,9 @@ function generateRound(){
     <div class="stat-box"><div class="stat-val">${Object.keys(usage).length}</div><div class="stat-lbl">Clubs Used</div></div>
     <div class="stat-box"><div class="stat-val">${sign(Math.round((globalTf-1)*100))}%</div><div class="stat-lbl">Temp Effect</div></div>
     <div class="stat-box"><div class="stat-val">${sign(Math.round((windFactor(windSpd,windCond)-1)*100))}%</div><div class="stat-lbl">Wind Effect</div></div>
+    <div class="stat-box"><div class="stat-val">${altFt>0?'+'+Math.round((af-1)*100)+'%':'—'}</div><div class="stat-lbl">Altitude Effect</div></div>
     <div class="stat-box"><div class="stat-val">${gps}</div><div class="stat-lbl">GPS Holes</div></div>`;
-  renderShotTable();renderHistogram();renderApiSummary();
+  renderShotTable();renderHistogram();renderApiSummary();renderAltitudeCard();
   const res=document.getElementById('results');res.style.display='block';
   setTimeout(()=>res.scrollIntoView({behavior:'smooth'}),50);
 }
@@ -1609,7 +1634,7 @@ document.getElementById('shotTable').addEventListener('change',function(e){
   const hr=roundPlan.holeResults.find(h=>h.hole===hn);if(!hr)return;
   if(cn==='__auto__')delete hr.overrides[sn];else hr.overrides[sn]=cn;
   const hd=roundPlan.holes.find(h=>h.hole===hn);
-  hr.shots=computeShots(hd,roundPlan.clubs,roundPlan.globalTf,roundPlan.windSpd,roundPlan.windCond,roundPlan.rollPct,hr.overrides);
+  hr.shots=computeShots(hd,roundPlan.clubs,roundPlan.globalTf,roundPlan.windSpd,roundPlan.windCond,roundPlan.rollPct,hr.overrides,roundPlan.altFt||0);
   const tb=document.getElementById(`hb-${hn}`);if(tb)fillHoleTbody(tb,hr);
   const total=roundPlan.holeResults.reduce((s,h)=>s+h.shots.length,0);
   const el=document.querySelector('.stat-total');if(el)el.textContent=total;
@@ -1671,6 +1696,7 @@ function createShotRow(hr,s){
     <td class="${isFirst?'tee-shot':''}">${s.base} yds</td>
     <td>${adjCell(s.tempAdj)}</td>
     <td>${adjCell(s.windAdj)}</td>
+    <td>${adjCell(s.altAdj)}</td>
     <td>${adjCell(s.elevAdj)}</td>
     <td>${s.carry} yds</td>
     <td>${rollDisplay}</td>
@@ -1692,6 +1718,32 @@ function renderHistogram(){
     row.innerHTML=`<div class="hist-label">${club}</div><div class="hist-bar-bg"><div class="hist-bar" style="width:${(count/max)*100}%"></div></div><div class="hist-count">${count}×</div>`;
     hist.appendChild(row);
   });
+}
+
+function renderAltitudeCard(){
+  const el=document.getElementById('altitudeCard');if(!el)return;
+  if(!roundPlan){el.innerHTML='<p style="color:var(--muted);font-size:.88rem;">Generate a round plan to see altitude effect per club.</p>';return;}
+  const altFt=roundPlan.altFt||0;
+  const af=altFactor(altFt);
+  const pct=Math.round((af-1)*100);
+  if(altFt===0){
+    el.innerHTML='<p style="color:var(--muted);font-size:.88rem;">Course altitude is 0 ft — no altitude adjustment applied. Set a value in Step 1 to enable.</p>';
+    return;
+  }
+  const rows=roundPlan.clubs.map(c=>{
+    const adj=Math.round(c.distance*(af-1));
+    return `<tr><td><strong>${c.name}</strong></td><td>${c.distance} yds</td><td><span class="adj-plus">+${adj}</span></td><td><strong>${Math.round(c.distance*af)} yds</strong></td></tr>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
+      <div class="stat-box" style="min-width:120px;"><div class="stat-val">${altFt.toLocaleString()} ft</div><div class="stat-lbl">Course Altitude</div></div>
+      <div class="stat-box" style="min-width:120px;"><div class="stat-val">+${pct}%</div><div class="stat-lbl">Distance Boost</div></div>
+      <p style="font-size:.82rem;color:var(--muted);max-width:360px;margin:0;">Thinner air at altitude reduces drag, adding ~2% to carry distance per 1,000 ft above sea level.</p>
+    </div>
+    <div class="table-wrap"><table class="api-summary-table">
+      <thead><tr><th>Club</th><th>Sea Level</th><th>Altitude Gain</th><th>At ${altFt.toLocaleString()} ft</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
 }
 
 function renderApiSummary(){
@@ -1837,7 +1889,7 @@ function switchMainTab(name){
   document.getElementById('tab-about').style.display=name==='about'?'':'none';
   document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().includes(name)));
   document.getElementById('tocNav').style.display=name==='planner'?'':'none';
-  if(name==='weather')renderWeatherCharts();
+  if(name==='weather'){renderWeatherCharts();renderAltitudeCard();}
   if(name==='holes'){
     ensureLeaflet().then(()=>{
       initHoleMaps();
@@ -1895,7 +1947,7 @@ function tocClick(e,el){
   populateClubs(loadBag()||DEFAULT_CLUBS);
   initHoleTable();adjNote();
   document.getElementById('playDate').valueAsDate=new Date();
-  ['temperature','windSpeed','windDir','windEffect'].forEach(id=>{
+  ['temperature','windSpeed','windDir','windEffect','courseAltitude'].forEach(id=>{
     document.getElementById(id).addEventListener('input',adjNote);
     document.getElementById(id).addEventListener('change',adjNote);
   });
