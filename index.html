@@ -175,6 +175,14 @@
     #res-plan .table-wrap{max-height:72vh;overflow-y:auto;overflow-x:auto;}
     #shotTable thead th{position:sticky;top:0;z-index:5;box-shadow:0 2px 4px rgba(0,0,0,.10);}
 
+    /* ── Slope tab ── */
+    #tab-slope{padding:.5rem 0 2rem;}
+    .slope-charts-grid{display:grid;grid-template-columns:1fr;gap:1.5rem;}
+    .slope-empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:.95rem;}
+    .slope-legend{display:flex;gap:1.2rem;justify-content:center;flex-wrap:wrap;font-size:.82rem;font-weight:600;margin-top:.6rem;}
+    .slope-legend-item{display:flex;align-items:center;gap:.4rem;}
+    .slope-legend-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
+
     /* ── Main tab bar ── */
     .main-tab-bar{display:flex;gap:.35rem;margin-bottom:1.75rem;border-bottom:2.5px solid var(--border);padding-bottom:0;}
     .main-tab{padding:.6rem 1.4rem;border:none;background:none;cursor:pointer;font-size:.97rem;font-weight:700;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2.5px;border-radius:8px 8px 0 0;transition:color .15s,background .15s;}
@@ -225,6 +233,7 @@
   <div class="main-tab-bar">
     <button class="main-tab active" onclick="switchMainTab('planner')">⛳ Planner</button>
     <button class="main-tab" onclick="switchMainTab('holes')">🗺 Holes</button>
+    <button class="main-tab" onclick="switchMainTab('slope')">⛰ Slope</button>
     <button class="main-tab" onclick="switchMainTab('weather')">🌤 Weather</button>
     <button class="main-tab" onclick="switchMainTab('about')">About</button>
   </div>
@@ -408,7 +417,7 @@
               <th>Hole</th><th>Par</th><th>Yds</th>
               <th>#</th><th>Club</th><th>Auto</th>
               <th>Base</th><th title="Temperature adjustment">+Temp</th>
-              <th title="Wind adjustment">+Wind</th><th title="Altitude adjustment (2% per 1,000 ft)">+Alt</th><th title="Elevation adjustment (shot 1 only)">+Elev</th>
+              <th title="Wind adjustment">+Wind</th><th title="Altitude adjustment (2% per 1,000 ft)">+Alt</th><th title="Slope adjustment (tee-to-green elevation change)">+Slope</th>
               <th>Carry</th><th>Roll</th><th>Total</th>
               <th>Left</th><th>Wind</th>
             </tr>
@@ -432,6 +441,32 @@
   <div id="tab-holes" style="display:none;">
     <div id="holeDiagramGrid">
       <div class="hole-diagrams-empty">Search and select a course to see hole diagrams.</div>
+    </div>
+  </div>
+
+  <!-- ══ SLOPE TAB ══ -->
+  <div id="tab-slope" style="display:none;">
+    <div id="slopeChartsWrap">
+      <div class="slope-empty" id="slopeEmpty">Fetch yardages for a course to see slope data.</div>
+      <div id="slopeChartsContent" style="display:none;" class="slope-charts-grid">
+        <div class="card">
+          <div class="card-head"><h2>Hole-by-Hole Slope</h2></div>
+          <div class="card-body">
+            <svg id="slopeBarChart" viewBox="0 0 760 220" width="100%" style="overflow:visible;"></svg>
+            <div class="slope-legend">
+              <span class="slope-legend-item"><span class="slope-legend-dot" style="background:#2d6a4f;"></span>Downhill (ball flies farther)</span>
+              <span class="slope-legend-item"><span class="slope-legend-dot" style="background:#c62828;"></span>Uphill (ball flies shorter)</span>
+              <span class="slope-legend-item"><span class="slope-legend-dot" style="background:#bdbdbd;"></span>Flat</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Uphill vs Downhill by Par</h2></div>
+          <div class="card-body">
+            <svg id="slopeHistChart" viewBox="0 0 400 260" width="100%" style="overflow:visible;max-width:500px;display:block;margin:0 auto;"></svg>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -559,7 +594,7 @@
       </div>
 
       <div class="about-card">
-        <div class="about-card-head">Elevation Adjustment</div>
+        <div class="about-card-head">Slope Adjustment</div>
         <div class="about-card-body">
           <p>Tee and green elevations are fetched from the Open-Meteo terrain API. A positive adjustment means the ball travels farther (downhill); negative means shorter (uphill).</p>
           <table class="about-source-table" style="margin-bottom:.7rem;">
@@ -1014,6 +1049,7 @@ async function selectCourse(item,displayName){
           const rawLabel=(h.teeElev!==undefined&&h.greenElev!==undefined)?` (${Math.round(h.teeElev)}m→${Math.round(h.greenElev)}m)`:'';
           tr.querySelector('.slope-badge').textContent=adjLabel+rawLabel;
         });
+        renderSlopeCharts();
         setStatus(sEl,'ok',`✓ Yardages + slope for ${withElev} holes. Wind auto-set per hole.`);
       }else{setStatus(sEl,'warning',`✓ Yardages for ${count} holes (elevation data unavailable — slope adjustments disabled). Wind auto-set per hole.`);}
     }else{setStatus(sEl,'ok',`✓ Yardages for ${count} holes. Wind auto-set per hole.`);}
@@ -1767,6 +1803,143 @@ function renderAltitudeCard(){
     </table></div>`;
 }
 
+function renderSlopeCharts(){
+  const empty=document.getElementById('slopeEmpty');
+  const content=document.getElementById('slopeChartsContent');
+  if(!empty||!content)return;
+
+  // Collect hole slope data from the hole table
+  const holeData=[];
+  document.querySelectorAll('#holeBody tr[data-hole]').forEach(tr=>{
+    const n=parseInt(tr.dataset.hole);
+    const elevAdj=tr.dataset.elevAdj!==undefined&&tr.dataset.elevAdj!==''?parseFloat(tr.dataset.elevAdj):null;
+    const teeElev=tr.dataset.teeElev!==undefined&&tr.dataset.teeElev!==''?parseFloat(tr.dataset.teeElev):null;
+    const greenElev=tr.dataset.greenElev!==undefined&&tr.dataset.greenElev!==''?parseFloat(tr.dataset.greenElev):null;
+    const par=parseInt(tr.querySelector('.hole-par')?.value)||4;
+    if(elevAdj!==null)holeData.push({n,elevAdj,teeElev,greenElev,par});
+  });
+
+  if(!holeData.length){empty.style.display='';content.style.display='none';return;}
+  empty.style.display='none';content.style.display='';
+
+  renderSlopeBarChart(holeData);
+  renderSlopeHistogram(holeData);
+}
+
+function renderSlopeBarChart(holes){
+  const svg=document.getElementById('slopeBarChart');if(!svg)return;
+  svg.innerHTML='';
+  const ns='http://www.w3.org/2000/svg';
+  const mk=(tag,attrs,text)=>{const el=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));if(text!=null)el.textContent=text;return el;};
+  const W=760,H=220,pL=36,pR=12,pT=18,pB=36;
+  const cW=W-pL-pR,cH=H-pT-pB;
+  const n=holes.length;
+  const barW=Math.floor(cW/n)-2;
+  const adjs=holes.map(h=>h.elevAdj);
+  const maxAbs=Math.max(Math.abs(Math.min(...adjs)),Math.abs(Math.max(...adjs)),5);
+  const zero=pT+cH/2;
+  const yScale=v=>(cH/2)*(v/maxAbs);
+
+  // Y axis gridlines
+  [-maxAbs,-Math.round(maxAbs/2),0,Math.round(maxAbs/2),maxAbs].forEach(v=>{
+    const y=zero-yScale(v);
+    svg.appendChild(mk('line',{x1:pL,y1:y,x2:W-pR,y2:y,stroke:v===0?'#888':'#e5e7eb','stroke-width':v===0?1.5:1,'stroke-dasharray':v===0?'':'4,3'}));
+    svg.appendChild(mk('text',{x:pL-5,y,fill:'#888','font-size':'9','text-anchor':'end','dominant-baseline':'middle'},v>0?'+'+v+'y':v+'y'));
+  });
+
+  holes.forEach((h,i)=>{
+    const x=pL+i*(cW/n)+(cW/n-barW)/2;
+    const adj=h.elevAdj;
+    const color=adj>0?'#2d6a4f':adj<0?'#c62828':'#bdbdbd';
+    const barH=Math.abs(yScale(adj));
+    const y=adj>=0?zero-barH:zero;
+    if(barH>0)svg.appendChild(mk('rect',{x,y,width:barW,height:Math.max(barH,2),fill:color,'fill-opacity':'0.85',rx:'2'}));
+    // Hole number
+    svg.appendChild(mk('text',{x:x+barW/2,y:H-pB+13,'text-anchor':'middle','font-size':'9.5',fill:'#555'},h.n));
+    // Value label
+    if(Math.abs(adj)>=2){
+      const ly=adj>0?zero-barH-4:zero+barH+11;
+      svg.appendChild(mk('text',{x:x+barW/2,y:ly,'text-anchor':'middle','font-size':'9','font-weight':'700',fill:color},(adj>0?'+':'')+adj));
+    }
+    // Par color dot
+    const dotColor=h.par===3?'#7b1fa2':h.par===5?'#1565c0':'#555';
+    svg.appendChild(mk('circle',{cx:x+barW/2,cy:H-pB+24,r:3,fill:dotColor}));
+  });
+
+  // Par legend below
+  svg.appendChild(mk('text',{x:pL,y:H-1,'font-size':'9',fill:'#7b1fa2','font-weight':'600'},'● Par 3'));
+  svg.appendChild(mk('text',{x:pL+52,y:H-1,'font-size':'9',fill:'#555','font-weight':'600'},'● Par 4'));
+  svg.appendChild(mk('text',{x:pL+104,y:H-1,'font-size':'9',fill:'#1565c0','font-weight':'600'},'● Par 5'));
+  // Y axis label
+  svg.appendChild(mk('text',{x:8,y:pT+cH/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':'9',fill:'#888',transform:`rotate(-90,8,${pT+cH/2})`},'Slope (yds)'));
+}
+
+function renderSlopeHistogram(holes){
+  const svg=document.getElementById('slopeHistChart');if(!svg)return;
+  svg.innerHTML='';
+  const ns='http://www.w3.org/2000/svg';
+  const mk=(tag,attrs,text)=>{const el=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));if(text!=null)el.textContent=text;return el;};
+  const W=400,H=260,pL=36,pR=20,pT=20,pB=55;
+  const cW=W-pL-pR,cH=H-pT-pB;
+
+  const pars=[3,4,5];
+  const counts={};
+  pars.forEach(p=>{counts[p]={down:0,flat:0,up:0};});
+  holes.forEach(h=>{
+    if(!counts[h.par])counts[h.par]={down:0,flat:0,up:0};
+    if(h.elevAdj>0)counts[h.par].down++;
+    else if(h.elevAdj<0)counts[h.par].up++;
+    else counts[h.par].flat++;
+  });
+
+  const maxCount=Math.max(...pars.map(p=>Math.max(counts[p].down,counts[p].up,counts[p].flat)),1);
+  const groupW=cW/pars.length;
+  const barW=Math.floor(groupW/4);
+  const gap=Math.floor(barW*0.4);
+  const COLORS={down:'#2d6a4f',flat:'#bdbdbd',up:'#c62828'};
+  const LABELS={down:'Downhill',flat:'Flat',up:'Uphill'};
+
+  // Y gridlines
+  for(let i=0;i<=maxCount;i++){
+    const y=pT+cH-i*(cH/maxCount);
+    svg.appendChild(mk('line',{x1:pL,y1:y,x2:W-pR,y2:y,stroke:'#e5e7eb','stroke-width':'1'}));
+    if(i>0||i===0)svg.appendChild(mk('text',{x:pL-5,y,'text-anchor':'end','dominant-baseline':'middle','font-size':'10',fill:'#888'},i));
+  }
+
+  pars.forEach((par,gi)=>{
+    const gx=pL+gi*groupW+groupW/2;
+    const types=['down','flat','up'];
+    const totalBarW=(barW+gap)*3-gap;
+    let bx=gx-totalBarW/2;
+    types.forEach(type=>{
+      const c=counts[par][type];
+      const barH=c*(cH/maxCount);
+      const y=pT+cH-barH;
+      if(c>0){
+        svg.appendChild(mk('rect',{x:bx,y,width:barW,height:barH,fill:COLORS[type],'fill-opacity':'0.85',rx:'2'}));
+        svg.appendChild(mk('text',{x:bx+barW/2,y:y-4,'text-anchor':'middle','font-size':'10.5','font-weight':'700',fill:COLORS[type]},c));
+      }
+      bx+=barW+gap;
+    });
+    // Par label
+    const parColor=par===3?'#7b1fa2':par===5?'#1565c0':'#555';
+    svg.appendChild(mk('text',{x:gx,y:pT+cH+16,'text-anchor':'middle','font-size':'13','font-weight':'700',fill:parColor},`Par ${par}`));
+    const dTotal=counts[par].down+counts[par].flat+counts[par].up;
+    svg.appendChild(mk('text',{x:gx,y:pT+cH+30,'text-anchor':'middle','font-size':'9.5',fill:'#888'},`${dTotal} hole${dTotal!==1?'s':''}`));
+  });
+
+  // Legend
+  const legY=H-12;const legItems=[['down','Downhill'],['flat','Flat'],['up','Uphill']];
+  let lx=pL;
+  legItems.forEach(([type,label])=>{
+    svg.appendChild(mk('rect',{x:lx,y:legY-9,width:11,height:11,fill:COLORS[type],'fill-opacity':'0.85',rx:'2'}));
+    svg.appendChild(mk('text',{x:lx+14,y:legY,'font-size':'10','font-weight':'600',fill:'#444'},label));
+    lx+=label.length*5.8+18;
+  });
+
+  svg.appendChild(mk('text',{x:8,y:pT+cH/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':'10',fill:'#888',transform:`rotate(-90,8,${pT+cH/2})`},'# Holes'));
+}
+
 function renderApiSummary(){
   const el=document.getElementById('apiSummary');if(!el)return;
   const icons={ok:'✓',error:'✗',unused:'—',partial:'⚠'};
@@ -1906,11 +2079,13 @@ function renderHoleDiagrams(){
 function switchMainTab(name){
   document.getElementById('tab-planner').style.display=name==='planner'?'':'none';
   document.getElementById('tab-holes').style.display=name==='holes'?'':'none';
+  document.getElementById('tab-slope').style.display=name==='slope'?'':'none';
   document.getElementById('tab-weather').style.display=name==='weather'?'':'none';
   document.getElementById('tab-about').style.display=name==='about'?'':'none';
   document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().includes(name)));
   document.getElementById('tocNav').style.display=name==='planner'?'':'none';
   if(name==='weather'){renderWeatherCharts();renderAltitudeCard();}
+  if(name==='slope')renderSlopeCharts();
   if(name==='holes'){
     ensureLeaflet().then(()=>{
       initHoleMaps();
