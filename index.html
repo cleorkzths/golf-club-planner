@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Golf Club Planner</title>
+  <style>
+    :root {
+      --green-dark:#1b4332; --green:#2d6a4f; --green-mid:#40916c;
+      --green-lite:#52b788; --green-pale:#d8f3dc;
+      --text:#1a1a2e; --muted:#6c757d; --border:#dee2e6; --bg:#f0f4f1; --white:#fff;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);}
+    header{background:linear-gradient(135deg,var(--green-dark),var(--green-mid));color:white;padding:2rem 1rem;text-align:center;}
+    header h1{font-size:2rem;letter-spacing:-.5px;}
+    header p{opacity:.82;margin-top:.35rem;font-size:.95rem;}
+    .container{max-width:1100px;margin:0 auto;padding:2rem 1rem 4rem;}
+
+    .card{background:var(--white);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.08);margin-bottom:1.5rem;overflow:hidden;}
+    .card-head{background:var(--green);color:white;padding:.9rem 1.4rem;display:flex;align-items:center;gap:.75rem;}
+    .card-head .step{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0;}
+    .card-head h2{font-size:1rem;font-weight:600;flex:1;}
+    .card-body{padding:1.4rem;}
+
+    .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:1rem;}
+    .form-group{display:flex;flex-direction:column;gap:.35rem;}
+    label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+    input,select,textarea{padding:.55rem .8rem;border:1.5px solid var(--border);border-radius:8px;font-size:.93rem;color:var(--text);width:100%;transition:border-color .18s;background:white;}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-lite);}
+    textarea{min-height:110px;resize:vertical;font-family:monospace;font-size:.82rem;}
+
+    .btn{display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1.1rem;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;transition:filter .15s;}
+    .btn:hover{filter:brightness(.88);}
+    .btn-primary{background:var(--green);color:white;}
+    .btn-secondary{background:var(--border);color:var(--text);}
+    .btn-weather{background:#1565c0;color:white;}
+    .btn-sm{padding:.28rem .55rem;font-size:.78rem;border-radius:6px;border:none;cursor:pointer;font-weight:600;}
+    .btn-danger{background:#e74c3c;color:white;}
+    .btn-generate{display:block;width:100%;max-width:420px;margin:2rem auto;padding:1rem;font-size:1.05rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:linear-gradient(135deg,var(--green-mid),var(--green-dark));color:white;border:none;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(45,106,79,.35);transition:transform .18s,box-shadow .18s;}
+    .btn-generate:hover{transform:translateY(-2px);box-shadow:0 7px 18px rgba(45,106,79,.4);}
+
+    .table-wrap{overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:.84rem;}
+    th{background:var(--green-pale);color:var(--green-dark);padding:.5rem .65rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700;white-space:nowrap;}
+    td{padding:.38rem .6rem;border-bottom:1px solid var(--border);vertical-align:middle;}
+    tbody:last-child tr:last-child td,tr:last-child td{border-bottom:none;}
+    td input,td select{border:1px solid var(--border);border-radius:6px;padding:.22rem .4rem;font-size:.8rem;width:100%;}
+    .club-override{min-width:100px;}
+
+    .save-badge{font-size:.75rem;background:rgba(255,255,255,.25);color:white;padding:.2rem .6rem;border-radius:12px;opacity:0;transition:opacity .4s;}
+    .save-badge.visible{opacity:1;}
+
+    .search-row{display:flex;gap:.6rem;align-items:flex-end;}
+    .search-wrapper{position:relative;flex:1;}
+    .search-results{position:absolute;z-index:100;background:white;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15);width:100%;max-width:520px;margin-top:.3rem;list-style:none;overflow:hidden;display:none;}
+    .search-results li{padding:.6rem 1rem;cursor:pointer;display:flex;flex-direction:column;gap:.12rem;border-bottom:1px solid var(--border);font-size:.86rem;}
+    .search-results li:last-child{border-bottom:none;}
+    .search-results li:hover{background:var(--green-pale);}
+    .result-loc{font-size:.72rem;color:var(--muted);}
+
+    .status-bar{margin-top:.65rem;padding:.5rem .9rem;border-radius:8px;font-size:.82rem;font-weight:500;display:none;}
+    .status-bar.visible{display:block;}
+    .status-bar.searching{background:#e3f2fd;color:#1565c0;}
+    .status-bar.ok{background:#e8f5e9;color:#2e7d32;}
+    .status-bar.warning{background:#fff8e1;color:#f57f17;}
+    .status-bar.error{background:#ffebee;color:#c62828;}
+    .status-bar.info{background:#ede7f6;color:#4527a0;}
+
+    .dir-badge,.slope-badge,.wx-badge{font-size:.76rem;font-weight:600;white-space:nowrap;}
+    .subtotal-row{background:var(--green-pale);border-top:2px solid var(--green-mid);}
+    .subtotal-row td{padding:.45rem .6rem;}
+    .wx-badge{color:#1565c0;}
+
+    /* ── Hole Diagrams Tab ── */
+    .hole-section-title{font-size:1rem;font-weight:700;color:var(--green-dark);margin:1.2rem 0 .6rem;padding-left:.2rem;}
+    .hole-diagram-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;}
+    .hole-card{border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s;aspect-ratio:3/4;position:relative;background:#2a5010;}
+    .hole-card:hover{transform:translateY(-3px);box-shadow:0 5px 14px rgba(0,0,0,.28);}
+    .hole-map-container{position:absolute;width:200%;height:200%;top:-50%;left:-50%;transform-origin:center center;}
+    .hole-info-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:white;font-size:.7rem;font-weight:600;padding:.25rem .45rem;pointer-events:none;z-index:400;display:flex;justify-content:space-between;align-items:center;}
+    .hole-num-badge{position:absolute;top:6px;right:6px;width:22px;height:22px;background:rgba(0,0,0,.5);color:white;font-size:.75rem;font-weight:700;border-radius:50%;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:400;}
+    .hole-elev-badge{color:#ffb3b3;}
+    .hole-elev-badge.dn{color:#b3d4ff;}
+    .hole-no-gps{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,.5);font-size:.8rem;text-align:center;gap:.3rem;}
+    .hole-map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.6);font-size:.8rem;background:#2a5010;z-index:410;}
+    .hole-gm-link{position:absolute;top:6px;left:6px;width:20px;height:20px;background:rgba(0,0,0,.55);color:white;font-size:.75rem;font-weight:700;border-radius:4px;display:flex;align-items:center;justify-content:center;pointer-events:auto;z-index:401;text-decoration:none;opacity:.8;transition:opacity .15s;}
+    .hole-gm-link:hover{opacity:1;background:rgba(66,133,244,.85);}
+    .hole-diagrams-empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:.95rem;}
+    #tab-holes{padding:.5rem 0 2rem;}
+
+    .wx-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;}
+    @media(max-width:700px){.wx-charts-grid{grid-template-columns:1fr;}}
+    .wx-legend{display:flex;flex-wrap:wrap;gap:.5rem .9rem;justify-content:center;font-size:.8rem;}
+    .wx-legend-item{display:flex;align-items:center;gap:.35rem;font-weight:600;color:var(--text);}
+    .wx-legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+
+    .api-summary-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .api-summary-table th{background:var(--green-pale);color:var(--green-dark);padding:.4rem .7rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700;text-align:left;}
+    .api-summary-table td{padding:.35rem .7rem;border-bottom:1px solid var(--border);}
+    .api-summary-table tr:last-child td{border-bottom:none;}
+    .api-pill{display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .55rem;border-radius:20px;font-size:.75rem;font-weight:700;}
+    .api-pill.ok{background:#e8f5e9;color:#2e7d32;}
+    .api-pill.error{background:#ffebee;color:#c62828;}
+    .api-pill.unused{background:#f5f5f5;color:#9e9e9e;}
+    .api-pill.partial{background:#fff8e1;color:#f57f17;}
+
+    .tab-bar{display:flex;border-bottom:2px solid var(--border);margin-bottom:1rem;gap:.25rem;}
+    .tab{padding:.5rem 1rem;border:none;background:none;cursor:pointer;font-size:.9rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;}
+    .tab.active{color:var(--green);border-bottom-color:var(--green);}
+
+    .image-upload-area{border:2px dashed var(--border);border-radius:10px;padding:1.5rem;text-align:center;cursor:pointer;color:var(--muted);font-size:.9rem;display:block;transition:border-color .2s;}
+    .image-upload-area:hover{border-color:var(--green-lite);}
+    #imageInput{display:none;}
+    #imagePreview{max-width:100%;max-height:180px;border-radius:8px;margin-top:.6rem;display:none;}
+    .ocr-progress{display:none;margin-top:.8rem;}
+    .ocr-bar-bg{height:9px;background:var(--border);border-radius:5px;overflow:hidden;margin-top:.4rem;}
+    .ocr-bar{height:100%;background:var(--green-lite);border-radius:5px;transition:width .3s;}
+    .ocr-lbl{font-size:.78rem;color:var(--muted);display:flex;justify-content:space-between;}
+
+    .adj-note{margin-top:1rem;background:#fef9e7;border:1px solid #f4d03f;border-radius:8px;padding:.65rem 1rem;font-size:.82rem;color:#7d6608;}
+    .parse-status{margin-top:.55rem;font-size:.82rem;}
+    .parse-ok{color:var(--green);} .parse-err{color:#e74c3c;}
+
+    #results{display:none;}
+    .results-title{text-align:center;padding:2rem 0 1rem;}
+    .results-title h2{font-size:1.5rem;color:var(--green-dark);}
+    .results-title p{color:var(--muted);margin-top:.3rem;}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:.9rem;}
+    .stat-box{background:var(--green-pale);border-radius:10px;padding:.9rem;text-align:center;}
+    .stat-val{font-size:1.7rem;font-weight:700;color:var(--green-dark);line-height:1;}
+    .stat-lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:.3rem;}
+
+    /* Shot table */
+    .hole-header td{background:var(--green);color:white;font-weight:700;border-bottom:none;font-size:.82rem;}
+    .badge{display:inline-block;padding:.12rem .5rem;border-radius:20px;font-size:.76rem;font-weight:600;background:var(--green-pale);color:var(--green-dark);}
+    .tee-shot{font-weight:700;}
+    .adj-plus{color:#2e7d32;font-size:.8rem;}
+    .adj-minus{color:#c62828;font-size:.8rem;}
+    .adj-zero{color:var(--muted);font-size:.8rem;}
+    .wind-pill{display:inline-block;padding:.1rem .45rem;border-radius:10px;font-size:.74rem;font-weight:600;background:#ddeeff;color:#1a5276;white-space:nowrap;}
+    .on-green{color:var(--green-mid);font-weight:700;font-size:.82rem;}
+
+    /* Histogram */
+    .hist-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.5rem;}
+    .hist-label{width:80px;text-align:right;font-size:.82rem;font-weight:600;color:var(--green-dark);flex-shrink:0;}
+    .hist-bar-bg{flex:1;height:24px;background:var(--green-pale);border-radius:5px;overflow:hidden;}
+    .hist-bar{height:100%;background:linear-gradient(90deg,var(--green-mid),var(--green-lite));border-radius:5px;transition:width .6s ease;min-width:3px;}
+    .hist-count{width:32px;font-size:.82rem;font-weight:700;color:var(--green-dark);flex-shrink:0;}
+
+    /* Weather summary */
+    .wx-summary{margin-top:1rem;font-size:.8rem;}
+    .wx-summary table th{background:#e3f2fd;color:#1565c0;}
+    .wx-summary table td{padding:.3rem .6rem;color:var(--text);}
+
+    /* Floating TOC */
+    .toc-float{position:fixed;right:1.1rem;top:50%;transform:translateY(-50%);z-index:300;display:flex;flex-direction:column;gap:.3rem;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-radius:14px;padding:.65rem .55rem;box-shadow:0 3px 18px rgba(0,0,0,.14);border:1px solid var(--border);}
+    .toc-item{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--muted);font-size:.74rem;font-weight:600;padding:.22rem .35rem;border-radius:7px;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap;}
+    .toc-item:hover{background:var(--green-pale);color:var(--green-dark);}
+    .toc-item.active{background:var(--green-pale);color:var(--green);}
+    .toc-dot{width:22px;height:22px;border-radius:50%;background:var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:.69rem;font-weight:700;flex-shrink:0;transition:background .15s,color .15s;}
+    .toc-item.active .toc-dot{background:var(--green);color:white;}
+    .toc-item:hover .toc-dot{background:var(--green-lite);color:white;}
+    #toc-results,#toc-res-plan,#toc-res-histogram,#toc-res-datasources{display:none;}
+    @media(max-width:1100px){.toc-float{display:none;}}
+
+    /* Section 2 auto-filled / grayed */
+    .card-autofilled .card-body{opacity:.38;pointer-events:none;user-select:none;transition:opacity .3s;}
+    .wx-override-btn{font-size:.72rem;background:rgba(255,255,255,.2);color:white;border:1px solid rgba(255,255,255,.38);border-radius:10px;padding:.15rem .6rem;cursor:pointer;font-weight:600;margin-left:auto;flex-shrink:0;transition:background .15s;}
+    .wx-override-btn:hover{background:rgba(255,255,255,.38);}
+
+    @media(max-width:600px){header h1{font-size:1.4rem;}.card-body{padding:1rem;}.search-row{flex-direction:column;}}
+
+    /* Sticky shot-table headers — table-wrap is the scroll container */
+    #res-plan .table-wrap{max-height:72vh;overflow-y:auto;overflow-x:auto;}
+    #shotTable thead th{position:sticky;top:0;z-index:5;box-shadow:0 2px 4px rgba(0,0,0,.10);}
+
+    /* ── Main tab bar ── */
+    .main-tab-bar{display:flex;gap:.35rem;margin-bottom:1.75rem;border-bottom:2.5px solid var(--border);padding-bottom:0;}
+    .main-tab{padding:.6rem 1.4rem;border:none;background:none;cursor:pointer;font-size:.97rem;font-weight:700;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2.5px;border-radius:8px 8px 0 0;transition:color .15s,background .15s;}
+    .main-tab:hover{color:var(--green-dark);background:var(--green-pale);}
+    .main-tab.active{color:var(--green-dark);border-bottom-color:var(--green);background:var(--green-pale);}
+
+    /* ── About tab content ── */
+    .about-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;}
+    @media(max-width:700px){.about-grid{grid-template-columns:1fr;}}
+    .about-card{background:var(--white);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.07);overflow:hidden;}
+    .about-card-head{background:var(--green);color:white;padding:.75rem 1.2rem;font-size:.95rem;font-weight:700;}
+    .about-card-body{padding:1.1rem 1.2rem;font-size:.88rem;line-height:1.6;color:var(--text);}
+    .about-card-body p{margin-bottom:.7rem;}
+    .about-card-body p:last-child{margin-bottom:0;}
+    .about-card-body ul{margin:.4rem 0 .7rem 1.1rem;}
+    .about-card-body li{margin-bottom:.3rem;}
+    .about-source-table{width:100%;border-collapse:collapse;font-size:.83rem;margin-top:.5rem;}
+    .about-source-table th{background:var(--green-pale);color:var(--green-dark);padding:.4rem .7rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700;text-align:left;}
+    .about-source-table td{padding:.42rem .7rem;border-bottom:1px solid var(--border);vertical-align:top;}
+    .about-source-table tr:last-child td{border-bottom:none;}
+    .calc-block{background:#f8fdf9;border-left:4px solid var(--green-lite);border-radius:0 8px 8px 0;padding:.75rem 1rem;margin:.65rem 0;font-size:.83rem;}
+    .calc-block strong{color:var(--green-dark);}
+    .formula{font-family:monospace;background:var(--green-pale);color:var(--green-dark);padding:.2rem .5rem;border-radius:5px;font-size:.82rem;white-space:nowrap;}
+    .calc-example-row{display:flex;gap:.4rem;align-items:baseline;flex-wrap:wrap;margin:.3rem 0;}
+    .calc-label{color:var(--muted);font-size:.78rem;min-width:80px;}
+    .calc-val{font-weight:700;color:var(--green-dark);}
+    .calc-note{color:var(--muted);font-size:.78rem;}
+  </style>
+</head>
+<body>
+<nav class="toc-float" id="tocNav">
+  <a class="toc-item active" href="#sec-course"  onclick="tocClick(event,this)"><span class="toc-dot">1</span>Course</a>
+  <a class="toc-item"        href="#sec-weather" onclick="tocClick(event,this)"><span class="toc-dot">2</span>Weather</a>
+  <a class="toc-item"        href="#sec-bag"     onclick="tocClick(event,this)"><span class="toc-dot">3</span>Bag</a>
+  <a class="toc-item"        href="#sec-card"    onclick="tocClick(event,this)"><span class="toc-dot">4</span>Scorecard</a>
+  <a class="toc-item"        href="#sec-physics" onclick="tocClick(event,this)"><span class="toc-dot">⚙</span>Physics</a>
+  <a class="toc-item"        href="#results"     onclick="tocClick(event,this)" id="toc-results"><span class="toc-dot">★</span>Results</a>
+  <a class="toc-item" href="#res-plan"        onclick="tocClick(event,this)" id="toc-res-plan"        style="display:none;"><span class="toc-dot">▶</span>Shot Plan</a>
+  <a class="toc-item" href="#res-histogram"   onclick="tocClick(event,this)" id="toc-res-histogram"   style="display:none;"><span class="toc-dot">▶</span>Histogram</a>
+  <a class="toc-item" href="#res-datasources" onclick="tocClick(event,this)" id="toc-res-datasources" style="display:none;"><span class="toc-dot">▶</span>Data Sources</a>
+</nav>
+<header>
+  <h1>⛳ Golf Club Planner</h1>
+  <p>Club-by-club recommendations with GPS, live weather, slope, temperature &amp; wind</p>
+</header>
+<div class="container">
+
+  <div class="main-tab-bar">
+    <button class="main-tab active" onclick="switchMainTab('planner')">⛳ Planner</button>
+    <button class="main-tab" onclick="switchMainTab('holes')">🗺 Holes</button>
+    <button class="main-tab" onclick="switchMainTab('weather')">🌤 Weather</button>
+    <button class="main-tab" onclick="switchMainTab('about')">About</button>
+  </div>
+
+  <div id="tab-planner">
+  <!-- Step 1: Course Info -->
+  <div class="card" id="sec-course">
+    <div class="card-head"><div class="step">1</div><h2>Course Info</h2></div>
+    <div class="card-body">
+      <div style="margin-bottom:1rem;">
+        <label style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">Course Name</label>
+        <div class="search-row" style="margin-top:.35rem;">
+          <div class="search-wrapper">
+            <input type="text" id="courseName" placeholder="e.g. Pebble Beach Golf Links">
+            <ul class="search-results" id="searchResults"></ul>
+          </div>
+          <button class="btn btn-primary" onclick="searchCourse()" style="flex-shrink:0;white-space:nowrap;">🔍 Search</button>
+        </div>
+        <div class="status-bar" id="gpsStatus"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label for="playDate">Date of Play</label><input type="date" id="playDate"></div>
+        <div class="form-group"><label for="playTime">Tee Time</label><input type="time" id="playTime" value="09:00"></div>
+        <div class="form-group">
+          <label for="teeColor">Tee</label>
+          <select id="teeColor" onchange="onTeeChange()">
+            <option value="Black">⚫ Black / Championship</option>
+            <option value="Blue" selected>🔵 Blue</option>
+            <option value="White">⚪ White</option>
+            <option value="Gold">🟡 Gold</option>
+            <option value="Red">🔴 Red / Senior</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="fetchYardages()">⛳ Fetch Yardages for This Course</button>
+        <span style="font-size:.8rem;color:var(--muted);">GPS hole distances from OpenStreetMap, scaled per tee for curated courses · changing the Tee dropdown updates yardages instantly</span>
+      </div>
+      <div style="margin-top:.6rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-weather" onclick="fetchWeather()">⛅ Fetch Weather for This Round</button>
+        <span style="font-size:.8rem;color:var(--muted);">Uses Open-Meteo forecast (or historical if date is far out)</span>
+      </div>
+      <div class="status-bar" id="weatherStatus"></div>
+      <div class="wx-summary" id="wxSummary"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Weather (manual fallback) -->
+  <div class="card" id="sec-weather">
+    <div class="card-head"><div class="step">2</div><h2>Weather Conditions <span style="font-weight:400;font-size:.85rem;opacity:.8;">(auto-filled by Fetch Weather, or enter manually)</span></h2><button class="wx-override-btn" id="wxOverrideBtn" style="display:none;" onclick="enableWeatherSection()">✏ Edit manually</button></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group"><label for="temperature">Temperature (°F)</label><input type="number" id="temperature" value="72" min="-20" max="120"></div>
+        <div class="form-group"><label for="windSpeed">Wind Speed (mph)</label><input type="number" id="windSpeed" value="0" min="0" max="60"></div>
+        <div class="form-group">
+          <label for="windDir">Wind Direction (toward)</label>
+          <select id="windDir">
+            <option>N</option><option>NNE</option><option>NE</option><option>ENE</option>
+            <option>E</option><option>ESE</option><option>SE</option><option>SSE</option>
+            <option>S</option><option>SSW</option><option>SW</option><option>WSW</option>
+            <option>W</option><option>WNW</option><option selected>NW</option><option>NNW</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="windEffect">Global Wind Fallback</label>
+          <select id="windEffect">
+            <option value="calm">Calm</option>
+            <option value="crosswind" selected>Mixed / Crosswind</option>
+            <option value="headwind">Mostly Headwind</option>
+            <option value="tailwind">Mostly Tailwind</option>
+          </select>
+        </div>
+      </div>
+      <div class="adj-note" id="adjNote">—</div>
+    </div>
+  </div>
+
+  <!-- Step 3: Bag -->
+  <div class="card" id="sec-bag">
+    <div class="card-head">
+      <div class="step">3</div>
+      <h2>Your Bag — Carry Distances (calm &amp; 70°F)</h2>
+      <span class="save-badge" id="saveBadge">✓ Saved</span>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table><thead><tr><th>Club</th><th>Distance (yds)</th><th></th></tr></thead>
+        <tbody id="clubBody"></tbody></table>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="addClubRow()">+ Add Club</button>
+        <button class="btn btn-secondary" onclick="resetToDefaults()">↺ Reset to Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Scorecard -->
+  <div class="card" id="sec-card">
+    <div class="card-head"><div class="step">4</div><h2>Scorecard</h2></div>
+    <div class="card-body">
+      <div class="status-bar" id="cardStatus"></div>
+      <div class="tab-bar">
+        <button class="tab active" data-tab="paste" onclick="switchTab('paste')">📋 Paste Text</button>
+        <button class="tab" data-tab="image" onclick="switchTab('image')">📷 Upload Image</button>
+      </div>
+      <div id="tabPaste">
+        <div class="form-group" style="margin-bottom:.8rem;">
+          <label>Paste Scorecard Text</label>
+          <textarea id="scorecardText" placeholder="Paste any scorecard text — the app extracts 18 hole yardages automatically.&#10;Multi-tee tip: if your paste has multiple labeled rows, each tee is stored separately and the Tee dropdown swaps between them.&#10;&#10;Example (single tee):&#10;Hole   1    2    3    4    5    6    7    8    9  Out&#10;Yds  420  390  175  510  365  195  445  340  480 3320&#10;Par    4    4    3    5    4    3    4    4    5   36&#10;&#10;Example (multi-tee — recommended):&#10;Black  430 540 195 410 425 545 200 415 360 ...&#10;Blue   410 510 175 390 405 525 180 400 340 ...&#10;White  385 485 155 370 380 500 160 380 320 ...&#10;Gold   355 460 140 350 355 470 140 360 295 ...&#10;Red    310 410 115 320 320 425 110 315 250 ..."></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="parseScorecard()">Parse Scorecard →</button>
+      </div>
+      <div id="tabImage" style="display:none;">
+        <label class="image-upload-area" for="imageInput">
+          <div>📸 Click to upload a scorecard photo or screenshot</div>
+          <div style="font-size:.78rem;margin-top:.35rem;">JPG · PNG · HEIC — max 8 MB</div>
+          <img id="imagePreview" alt="preview">
+        </label>
+        <input type="file" id="imageInput" accept="image/*">
+        <div id="ocrNote" style="font-size:.78rem;color:var(--muted);margin-top:.45rem;">OCR engine loads on first use (~10 MB).</div>
+        <div class="ocr-progress" id="ocrProgress">
+          <div class="ocr-lbl"><span>Reading image…</span><span id="ocrPct">0%</span></div>
+          <div class="ocr-bar-bg"><div class="ocr-bar" id="ocrBar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div id="parseStatus" class="parse-status"></div>
+      <div style="margin-top:1.4rem;" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Hole</th><th>Yards</th><th>Par</th><th>Wind Override</th>
+              <th id="holeDirTh" style="display:none;">Hole Direction</th>
+              <th id="holeSlopeTh" style="display:none;">Slope</th>
+              <th id="holeWxTh" style="display:none;">Weather at Tee Time</th>
+            </tr>
+          </thead>
+          <tbody id="holeBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shot Physics -->
+  <div class="card" id="sec-physics">
+    <div class="card-head"><div class="step">⚙</div><h2>Shot Physics</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="rollPct">Fairway Roll (% of carry)</label>
+          <input type="number" id="rollPct" value="8" min="0" max="25" step="1">
+        </div>
+      </div>
+      <p style="font-size:.8rem;color:var(--muted);margin-top:.7rem;">
+        Applies to non-approach shots. Wind modifies roll: headwind ×0.5, tailwind ×1.5.
+        Approach shots (reaching the green) = 0 roll. Driver excluded from shot 2+.
+        Remaining ≤ 20 yds = assumed on the green.
+      </p>
+    </div>
+  </div>
+
+  <button class="btn-generate" onclick="generateRound()">⛳ Generate Round Plan</button>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="results-title">
+      <h2 id="resTitle">Round Plan</h2>
+      <p id="resSubtitle"></p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Round Summary</h2></div>
+      <div class="card-body"><div class="stats-grid" id="statsGrid"></div></div>
+    </div>
+    <div class="card" id="res-plan">
+      <div class="card-head"><h2>Shot-by-Shot — click Club dropdown to override</h2></div>
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap" style="overflow-x:auto;">
+        <table id="shotTable">
+          <thead>
+            <tr>
+              <th>Hole</th><th>Par</th><th>Yds</th>
+              <th>#</th><th>Club</th><th>Auto</th>
+              <th>Base</th><th title="Temperature adjustment">+Temp</th>
+              <th title="Wind adjustment">+Wind</th><th title="Elevation adjustment (shot 1 only)">+Elev</th>
+              <th>Carry</th><th>Roll</th><th>Total</th>
+              <th>Left</th><th>Wind</th>
+            </tr>
+          </thead>
+        </table>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="res-histogram">
+      <div class="card-head"><h2>Club Usage Histogram</h2></div>
+      <div class="card-body"><div id="histogram"></div></div>
+    </div>
+    <div class="card" id="res-datasources">
+      <div class="card-head"><h2>Data Sources</h2></div>
+      <div class="card-body"><div id="apiSummary"></div></div>
+    </div>
+  </div>
+  </div><!-- end #tab-planner -->
+
+  <!-- ══ HOLES TAB ══ -->
+  <div id="tab-holes" style="display:none;">
+    <div id="holeDiagramGrid">
+      <div class="hole-diagrams-empty">Search and select a course to see hole diagrams.</div>
+    </div>
+  </div>
+
+  <!-- ══ WEATHER CHARTS TAB ══ -->
+  <div id="tab-weather" style="display:none;padding:.5rem 0 2rem;">
+    <div id="wxChartsEmpty" class="hole-diagrams-empty">Fetch weather data (Step 2) to see charts.</div>
+    <div id="wxChartsContent" style="display:none;">
+      <div class="wx-charts-grid">
+        <div class="card">
+          <div class="card-head"><h2>Wind Direction &amp; Speed</h2></div>
+          <div class="card-body" style="display:flex;flex-direction:column;align-items:center;gap:1rem;">
+            <svg id="windCompass" viewBox="0 0 300 300" width="100%" style="max-width:300px;"></svg>
+            <div id="windLegend" class="wx-legend"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Temperature Over Round</h2></div>
+          <div class="card-body">
+            <svg id="tempChart" viewBox="0 0 400 220" width="100%" style="overflow:visible;"></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ABOUT TAB ══ -->
+  <div id="tab-about" style="display:none;">
+
+    <div class="about-card" style="margin-bottom:1.5rem;">
+      <div class="about-card-head">What is Golf Club Planner?</div>
+      <div class="about-card-body">
+        <p>Golf Club Planner is a single-page tool that helps you choose the right club for every shot on a course you're about to play. Enter your course, bag, and scorecard — the app fetches live GPS geometry, elevation, and weather data automatically, then models each shot accounting for temperature, wind, slope, and roll.</p>
+        <p>Everything runs in your browser with no account or install required. Your bag is saved locally between sessions.</p>
+        <ul>
+          <li>Search any course in OpenStreetMap to get hole bearings, distances, and elevations</li>
+          <li>Live weather (forecast or historical) sets per-hole wind conditions automatically</li>
+          <li>Shot-by-shot table with itemized adjustments — override any club inline</li>
+          <li>Club usage histogram shows which clubs you'll lean on most</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="about-card" style="margin-bottom:1.5rem;">
+      <div class="about-card-head">Data Sources</div>
+      <div class="about-card-body">
+        <table class="about-source-table">
+          <thead><tr><th>Source</th><th>Used For</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Nominatim / OpenStreetMap</strong></td>
+              <td>Course search &amp; GPS coordinates</td>
+              <td>Free, no API key. Results depend on OSM coverage for your course.</td>
+            </tr>
+            <tr>
+              <td><strong>Overpass API</strong></td>
+              <td>Hole-by-hole GPS geometry — tee &amp; green centroids, bearing, straight-line distance</td>
+              <td>Pulls <code>golf=hole</code> ways/relations from OSM. Accuracy varies by how well your course is mapped.</td>
+            </tr>
+            <tr>
+              <td><strong>USGS 3DEP Elevation</strong></td>
+              <td>Tee, fairway, and green elevation (meters above sea level)</td>
+              <td>1–3 m resolution lidar-based DEM via the National Map EPQS. US courses only; falls back to Open-Meteo (90 m) for international courses.</td>
+            </tr>
+            <tr>
+              <td><strong>Open-Meteo Weather</strong></td>
+              <td>Hourly temperature (°F), wind speed (mph), wind direction</td>
+              <td>Forecast API for dates within 14 days; Archive API for past dates or dates &gt;14 days out (uses prior-year data as proxy).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="about-grid">
+
+      <div class="about-card">
+        <div class="about-card-head">Temperature Adjustment</div>
+        <div class="about-card-body">
+          <p>Ball compression and air density both change with temperature. The model uses a simple linear approximation.</p>
+          <p><span class="formula">factor = 1 + (T − 70) / 1000</span></p>
+          <p>Each degree above 70 °F adds 0.1 % to carry; each degree below subtracts 0.1 %.</p>
+          <div class="calc-block">
+            <strong>Example — 7-iron (150 yd) at 95 °F</strong>
+            <div class="calc-example-row"><span class="calc-label">Factor:</span><span class="calc-val">1 + (95 − 70) / 1000 = 1.025</span></div>
+            <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 1.025 = 154 yds</span><span class="calc-note">&nbsp;(+4 yds)</span></div>
+          </div>
+          <div class="calc-block">
+            <strong>Example — same club at 40 °F</strong>
+            <div class="calc-example-row"><span class="calc-label">Factor:</span><span class="calc-val">1 + (40 − 70) / 1000 = 0.970</span></div>
+            <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 0.970 = 146 yds</span><span class="calc-note">&nbsp;(−4 yds)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-card-head">Wind Adjustment</div>
+        <div class="about-card-body">
+          <p>Wind factor is multiplied on top of the temperature-adjusted carry. Headwind hurts more than tailwind helps.</p>
+          <table class="about-source-table" style="margin-bottom:.7rem;">
+            <thead><tr><th>Condition</th><th>Formula (speed capped at 40 mph)</th><th>Cap</th></tr></thead>
+            <tbody>
+              <tr><td>Headwind</td><td><span class="formula">1 − 0.01 × spd</span></td><td>−25 % at 40 mph</td></tr>
+              <tr><td>Tailwind</td><td><span class="formula">1 + 0.005 × spd</span></td><td>+20 % at 40 mph</td></tr>
+              <tr><td>Crosswind</td><td><span class="formula">1 − 0.0025 × spd</span></td><td>−15 % at 40 mph</td></tr>
+            </tbody>
+          </table>
+          <div class="calc-block">
+            <strong>Example — 7-iron (150 yd) into 20 mph headwind at 70 °F</strong>
+            <div class="calc-example-row"><span class="calc-label">Factor:</span><span class="calc-val">1 − 0.01 × 20 = 0.80</span></div>
+            <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 0.80 = 120 yds</span><span class="calc-note">&nbsp;(−30 yds)</span></div>
+          </div>
+          <div class="calc-block">
+            <strong>Example — same club, 15 mph tailwind</strong>
+            <div class="calc-example-row"><span class="calc-label">Factor:</span><span class="calc-val">1 + 0.005 × 15 = 1.075</span></div>
+            <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 1.075 = 161 yds</span><span class="calc-note">&nbsp;(+11 yds)</span></div>
+          </div>
+          <p>Roll is also wind-adjusted: headwind 0.5×, tailwind 1.5×, crosswind/calm 1.0×.</p>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-card-head">Elevation Adjustment</div>
+        <div class="about-card-body">
+          <p>Tee and green elevations are fetched from the Open-Meteo terrain API. A positive adjustment means the ball travels farther (downhill); negative means shorter (uphill).</p>
+          <table class="about-source-table" style="margin-bottom:.7rem;">
+            <thead><tr><th>Direction</th><th>Formula</th></tr></thead>
+            <tbody>
+              <tr><td>Downhill (green lower)</td><td><span class="formula">drop_m × 0.75 × 1.094</span> ≈ 0.82 yd per m</td></tr>
+              <tr><td>Uphill (green higher)</td><td><span class="formula">−rise_m × 1.094</span> ≈ −1.09 yd per m</td></tr>
+            </tbody>
+          </table>
+          <p>Elevation is fetched at three points per hole: the tee, a fairway landing point (at estimated drive distance along the GPS bearing), and the green. Each shot interpolates its elevation change from this profile — so a drive gets the tee-to-fairway delta and approaches get the fairway-to-green delta.</p>
+          <div class="calc-block">
+            <strong>Example — 400-yd hole, green 12 m lower</strong>
+            <div class="calc-example-row"><span class="calc-label">Total adj:</span><span class="calc-val">12 × 0.75 × 1.094 = +9.8 yds</span></div>
+            <div class="calc-example-row"><span class="calc-label">Drive (65%):</span><span class="calc-val">+6.4 yds</span><span class="calc-note">&nbsp;→ ball flies farther</span></div>
+            <div class="calc-example-row"><span class="calc-label">Approach (35%):</span><span class="calc-val">+3.4 yds</span><span class="calc-note">&nbsp;→ need less club</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-card-head">Roll &amp; Club Selection</div>
+        <div class="about-card-body">
+          <p><strong>Roll</strong> is added after carry for all non-approach shots. The roll % slider sets the fraction of carry that continues rolling after landing, then wind multiplier adjusts for conditions.</p>
+          <p><span class="formula">roll = carry × rollPct% × windMult</span></p>
+          <div class="calc-block">
+            <strong>Example — Driver (250 yd carry), 7 % roll, tailwind</strong>
+            <div class="calc-example-row"><span class="calc-label">Wind mult:</span><span class="calc-val">1.5× (tailwind)</span></div>
+            <div class="calc-example-row"><span class="calc-label">Roll:</span><span class="calc-val">250 × 0.07 × 1.5 = 26 yds</span></div>
+            <div class="calc-example-row"><span class="calc-label">Total:</span><span class="calc-val">250 + 26 = 276 yds</span></div>
+          </div>
+          <p><strong>Club selection</strong> per shot:</p>
+          <ul>
+            <li>If any club can reach remaining distance → pick the one closest to the target (approach logic; no overshoot preference)</li>
+            <li>If no club can reach → pick the longest available (lay-up)</li>
+            <li>Driver is excluded from shot 2 onward</li>
+            <li>All adjustments (temp × wind) are factored into effective distance before selection</li>
+          </ul>
+        </div>
+      </div>
+
+    </div><!-- end about-grid -->
+  </div><!-- end #tab-about -->
+
+</div>
+<script>
+'use strict';
+/* ══ CONSTANTS ══ */
+const DIR_DEG={N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5};
+const WLABEL={headwind:'↙ Head',tailwind:'↗ Tail','crosswind-left':'← Left','crosswind-right':'→ Right',crosswind:'↔ Cross',calm:'Calm'};
+const DEFAULT_CLUBS=[
+  {name:'Driver',distance:250},{name:'3-Wood',distance:220},{name:'5-Wood',distance:205},
+  {name:'4-Hybrid',distance:195},{name:'5-iron',distance:180},{name:'6-iron',distance:165},
+  {name:'7-iron',distance:150},{name:'8-iron',distance:140},{name:'9-iron',distance:125},
+  {name:'PW',distance:110},{name:'GW',distance:95},{name:'SW',distance:75},{name:'LW',distance:55},
+];
+const LS_KEY='golfBag_v2';
+const ON_GREEN_THRESHOLD=20; // yards — shots with remaining ≤ this are "on the green"
+
+/* ══ STATE ══ */
+let bagReady=false,saveTimer=null,tessLoaded=false;
+let courseLat=null,courseLon=null;
+let roundPlan=null;
+let lastCourseItem=null;
+let lastWxChartData=null;
+let courseDB=null; // populated when a curated course is matched
+const holeElevProfiles={};
+
+/* ══ CURATED COURSE DATABASE ══
+   Per-tee total yardages for popular courses. When a course is recognized,
+   the tee dropdown becomes meaningful: GPS hole distances are scaled
+   proportionally to the selected tee's total, giving realistic per-tee
+   yardages instead of one-size-fits-all straight-line estimates.
+   Optionally include `pars[18]` and per-hole `holes` arrays keyed by tee.
+   Match keys are checked as case-insensitive substrings of the course name. */
+const COURSE_DB={
+  'rams hill':{
+    name:'Rams Hill Golf Club',
+    location:'Borrego Springs, CA',
+    matchKeys:['rams hill','ram\'s hill','rams hill golf','rams hill country club'],
+    par:72,
+    tees:{
+      'Black':{total:7232,rating:74.4,slope:138},
+      'Gold':{total:6830},
+      'Blue':{total:6571},
+      'White':{total:6369},
+      'Red':{total:5824},
+    },
+  },
+  'torrey pines south':{
+    name:'Torrey Pines South Course',
+    location:'La Jolla, CA',
+    matchKeys:['torrey pines south','torrey pines golf course south'],
+    par:72,
+    tees:{
+      'Black':{total:7765},
+      'Blue':{total:7250},
+      'White':{total:6603},
+      'Gold':{total:6112},
+      'Red':{total:5552},
+    },
+  },
+  'torrey pines north':{
+    name:'Torrey Pines North Course',
+    location:'La Jolla, CA',
+    matchKeys:['torrey pines north'],
+    par:72,
+    tees:{
+      'Black':{total:7258},
+      'Blue':{total:6874},
+      'White':{total:6379},
+      'Gold':{total:5841},
+      'Red':{total:5453},
+    },
+  },
+  'pebble beach':{
+    name:'Pebble Beach Golf Links',
+    location:'Pebble Beach, CA',
+    matchKeys:['pebble beach golf','pebble beach links'],
+    par:72,
+    tees:{
+      'Black':{total:7075},
+      'Blue':{total:6828},
+      'White':{total:6116},
+      'Gold':{total:5462},
+      'Red':{total:5198},
+    },
+  },
+};
+
+function lookupCuratedCourse(name){
+  if(!name)return null;
+  const n=name.toLowerCase();
+  for(const k in COURSE_DB){
+    const c=COURSE_DB[k];
+    const keys=c.matchKeys||[k];
+    if(keys.some(mk=>n.includes(mk.toLowerCase())))return c;
+  }
+  return null;
+}
+
+/* Build per-tee yardages for a single hole. If curated data has per-hole
+   yardages for that tee, use them directly. Otherwise scale GPS distance
+   proportionally: hole_yds * (tee_total / gps_total). The current dropdown
+   tee is the key; when tee changes onTeeChange swaps to that key's value. */
+function buildDistByTee(holeNum,gpsDist,gpsSum,curated){
+  const out={};
+  const TEE_LIST=['Black','Blue','White','Gold','Red'];
+  if(curated&&curated.tees){
+    for(const tee of TEE_LIST){
+      const teeData=curated.tees[tee];
+      if(!teeData)continue;
+      if(teeData.holes&&teeData.holes[holeNum-1]!=null){
+        out[tee]=teeData.holes[holeNum-1];
+      }else if(teeData.total&&gpsSum>0){
+        out[tee]=Math.round(gpsDist*teeData.total/gpsSum);
+      }
+    }
+    return out;
+  }
+  // No curated data — store GPS-only under each tee (so dropdown change is at least non-erroring)
+  for(const tee of TEE_LIST)out[tee]=Math.round(gpsDist);
+  return out;
+}
+
+/* Apply curated-only yardages when GPS is unavailable. Distributes the tee
+   total across 18 holes using par-weighting so par-3s get short and par-5s long. */
+function applyCuratedYardages(curated){
+  const tee=document.getElementById('teeColor').value;
+  const teeData=curated.tees?.[tee]||curated.tees?.Blue||Object.values(curated.tees||{})[0];
+  if(!teeData)return;
+  // Use stored per-hole if present, else weight by par
+  const pars=curated.pars&&curated.pars.length===18?curated.pars:[4,5,4,3,4,5,3,4,4,4,3,5,4,3,4,4,5,4];
+  let perHole;
+  if(teeData.holes&&teeData.holes.length===18){
+    perHole=teeData.holes;
+  }else{
+    const weights=pars.map(p=>p===3?0.55:p===5?1.45:1.0);
+    const wSum=weights.reduce((a,b)=>a+b,0);
+    perHole=weights.map(w=>Math.round(teeData.total*w/wSum));
+  }
+  const distByTeeAll={};
+  for(let i=0;i<18;i++){
+    const map={};
+    for(const t in curated.tees){
+      const td=curated.tees[t];
+      if(td.holes&&td.holes[i]!=null)map[t]=td.holes[i];
+      else if(td.total)map[t]=Math.round(perHole[i]*td.total/teeData.total);
+    }
+    distByTeeAll[i+1]=map;
+    const tr=document.querySelector(`#holeBody tr[data-hole="${i+1}"]`);
+    if(tr){
+      tr.querySelector('.hole-dist').value=perHole[i];
+      tr.dataset.distByTee=JSON.stringify(map);
+      tr.querySelector('.hole-par').value=String(pars[i]);
+    }
+  }
+  updateYardageTotals();
+}
+const apiStatus={
+  nominatim:{label:'Nominatim',desc:'Course Search',status:'unused',note:''},
+  overpass:{label:'Overpass API',desc:'Hole GPS Geometry',status:'unused',note:''},
+  elevation:{label:'Elevation API',desc:'Tee, fairway & green elevation',status:'unused',note:''},
+  weather:{label:'Open-Meteo Weather',desc:'Forecast / Archive',status:'unused',note:''},
+};
+
+/* ══ LOCAL STORAGE ══ */
+function saveBag(){
+  if(!bagReady)return;
+  try{localStorage.setItem(LS_KEY,JSON.stringify(getClubs()));const b=document.getElementById('saveBadge');b.classList.add('visible');clearTimeout(saveTimer);saveTimer=setTimeout(()=>b.classList.remove('visible'),2200);}catch(e){}
+}
+function loadBag(){try{const r=localStorage.getItem(LS_KEY);return r?JSON.parse(r):null;}catch{return null;}}
+
+/* ══ CLUB TABLE ══ */
+function addClubRow(name='',distance=''){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input type="text" class="club-name" value="${name}" placeholder="Club name"></td><td><input type="number" class="club-dist" value="${distance}" placeholder="Yds" min="0" max="400"></td><td><button class="btn-sm btn-danger remove-club-btn">✕</button></td>`;
+  document.getElementById('clubBody').appendChild(tr);
+}
+function populateClubs(clubs){document.getElementById('clubBody').innerHTML='';clubs.forEach(c=>addClubRow(c.name,c.distance));}
+function resetToDefaults(){populateClubs(DEFAULT_CLUBS);saveBag();}
+function getClubs(){
+  const clubs=[];
+  document.querySelectorAll('#clubBody tr').forEach(tr=>{
+    const name=tr.querySelector('.club-name')?.value.trim();
+    const dist=parseInt(tr.querySelector('.club-dist')?.value);
+    if(name&&!isNaN(dist)&&dist>=0)clubs.push({name,distance:dist});
+  });
+  return clubs.sort((a,b)=>b.distance-a.distance);
+}
+document.getElementById('clubBody').addEventListener('input',()=>saveBag());
+document.getElementById('clubBody').addEventListener('click',e=>{if(e.target.classList.contains('remove-club-btn')){e.target.closest('tr').remove();saveBag();}});
+
+/* ══ HOLE TABLE ══ */
+document.getElementById('holeBody').addEventListener('input',e=>{if(e.target.classList.contains('hole-dist'))updateYardageTotals();});
+function initHoleTable(){
+  const tb=document.getElementById('holeBody');tb.innerHTML='';
+  for(let i=1;i<=18;i++){
+    const tr=document.createElement('tr');tr.dataset.hole=i;
+    tr.innerHTML=`<td><strong>${i}</strong></td>
+      <td><input type="number" class="hole-dist" placeholder="—" min="50" max="750"></td>
+      <td><select class="hole-par"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option></select></td>
+      <td><select class="hole-wind"><option value="auto">Auto</option><option value="calm">Calm</option><option value="headwind">Headwind</option><option value="tailwind">Tailwind</option><option value="crosswind">Crosswind</option></select></td>
+      <td class="hole-dir-cell" style="display:none;"><span class="dir-badge">—</span></td>
+      <td class="hole-slope-cell" style="display:none;"><span class="slope-badge">—</span></td>
+      <td class="hole-wx-cell" style="display:none;"><span class="wx-badge">—</span></td>`;
+    tb.appendChild(tr);
+    if(i===9){
+      const sub=document.createElement('tr');sub.id='subtotal-front';sub.className='subtotal-row';
+      sub.innerHTML=`<td><strong>Out</strong></td><td id="front9-total" style="font-weight:700;">—</td><td colspan="5" style="color:var(--muted);font-size:0.8em;">Front 9</td>`;
+      tb.appendChild(sub);
+    }
+  }
+  const subBack=document.createElement('tr');subBack.id='subtotal-back';subBack.className='subtotal-row';
+  subBack.innerHTML=`<td><strong>In</strong></td><td id="back9-total" style="font-weight:700;">—</td><td colspan="5" style="color:var(--muted);font-size:0.8em;">Back 9</td>`;
+  tb.appendChild(subBack);
+  const subTotal=document.createElement('tr');subTotal.id='subtotal-total';subTotal.className='subtotal-row';
+  subTotal.innerHTML=`<td><strong>Total</strong></td><td id="total-yds" style="font-weight:700;">—</td><td colspan="5" style="color:var(--muted);font-size:0.8em;">18 holes</td>`;
+  tb.appendChild(subTotal);
+}
+function updateYardageTotals(){
+  let f=0,b=0;
+  for(let i=1;i<=18;i++){
+    const tr=document.querySelector(`#holeBody tr[data-hole="${i}"]`);
+    const v=parseInt(tr?.querySelector('.hole-dist')?.value)||0;
+    if(i<=9)f+=v;else b+=v;
+  }
+  const fmt=n=>n>0?n+'':'—';
+  const ft=document.getElementById('front9-total');if(ft)ft.textContent=fmt(f);
+  const bt=document.getElementById('back9-total');if(bt)bt.textContent=fmt(b);
+  const tt=document.getElementById('total-yds');if(tt)tt.textContent=f+b>0?f+b+'':'—';
+}
+function getHoles(){
+  return Array.from(document.querySelectorAll('#holeBody tr[data-hole]')).map(tr=>({
+    hole:parseInt(tr.dataset.hole),
+    distance:parseInt(tr.querySelector('.hole-dist')?.value)||0,
+    par:parseInt(tr.querySelector('.hole-par')?.value),
+    windOverride:tr.querySelector('.hole-wind')?.value,
+    bearing:tr.dataset.bearing!==undefined?parseFloat(tr.dataset.bearing):null,
+    elevAdjYards:tr.dataset.elevAdj!==undefined?parseFloat(tr.dataset.elevAdj):0,
+    elevProfile:holeElevProfiles[tr.dataset.hole]||null,
+    wxTemp:tr.dataset.wxTemp!==undefined?parseFloat(tr.dataset.wxTemp):null,
+    wxWindSpd:tr.dataset.wxWindSpd!==undefined?parseFloat(tr.dataset.wxWindSpd):null,
+    wxWindDir:tr.dataset.wxWindDir||null,
+  }));
+}
+function showCol(thId,cellClass,show){
+  document.getElementById(thId).style.display=show?'':'none';
+  document.querySelectorAll('.'+cellClass).forEach(c=>c.style.display=show?'':'none');
+}
+
+/* ══ COURSE SEARCH ══ */
+async function searchCourse(){
+  const name=document.getElementById('courseName').value.trim();
+  if(!name){alert('Enter a course name first.');return;}
+  const rEl=document.getElementById('searchResults'),sEl=document.getElementById('gpsStatus');
+  rEl.style.display='none';rEl.innerHTML='';
+  setStatus(sEl,'searching','🔍 Searching…');
+  try{
+    const data=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name+' golf')}&format=json&limit=8&addressdetails=1`,{headers:{'Accept-Language':'en'}}).then(r=>r.json());
+    const golf=data.filter(r=>r.class==='leisure'||r.type==='golf_course'||r.display_name.toLowerCase().includes('golf'));
+    const list=golf.length?golf:data.slice(0,5);
+    if(!list.length){apiStatus.nominatim={...apiStatus.nominatim,status:'error',note:'No results'};setStatus(sEl,'warning','⚠ No results. Try a different spelling.');return;}
+    apiStatus.nominatim={...apiStatus.nominatim,status:'ok',note:`${list.length} result${list.length>1?'s':''}`};
+    list.forEach(item=>{
+      const li=document.createElement('li');
+      const a=item.address||{};
+      const loc=[a.city||a.town||a.county,a.state,a.country_code?.toUpperCase()].filter(Boolean).join(', ');
+      li.innerHTML=`<strong>${item.display_name.split(',')[0]}</strong><span class="result-loc">${loc}</span>`;
+      li.onclick=()=>{rEl.style.display='none';selectCourse(item,item.display_name.split(',')[0]);};
+      rEl.appendChild(li);
+    });
+    rEl.style.display='block';
+    setStatus(sEl,'searching',`Found ${list.length} result${list.length>1?'s':''} — select one.`);
+    const close=e=>{if(!rEl.contains(e.target)){rEl.style.display='none';document.removeEventListener('click',close);}};
+    setTimeout(()=>document.addEventListener('click',close),0);
+  }catch(e){apiStatus.nominatim={...apiStatus.nominatim,status:'error',note:'Fetch failed'};setStatus(sEl,'error','⚠ Search failed. Check your connection.');}
+}
+
+const OVERPASS_ENDPOINTS=[
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
+async function overpassQuery(q){
+  const errors=[];
+  for(const url of OVERPASS_ENDPOINTS){
+    try{
+      const r=await fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'data='+encodeURIComponent(q),
+      });
+      if(!r.ok){errors.push(`${new URL(url).hostname}: HTTP ${r.status}`);continue;}
+      const data=await r.json();
+      return {data,endpoint:url};
+    }catch(e){errors.push(`${new URL(url).hostname}: ${e.message||'fetch error'}`);}
+  }
+  throw new Error('All Overpass endpoints failed — '+errors.join(' | '));
+}
+
+async function selectCourse(item,displayName){
+  lastCourseItem=item;
+  const sEl=document.getElementById('gpsStatus');
+  document.getElementById('courseName').value=displayName;
+  courseLat=parseFloat(item.lat);courseLon=parseFloat(item.lon);
+  setStatus(sEl,'searching','🛰 Fetching yardages for this course from OpenStreetMap…');
+  const csEl=document.getElementById('cardStatus');if(csEl)csEl.style.display='none';
+
+  // Check curated database first — if matched, seed per-tee totals
+  const curated=lookupCuratedCourse(displayName);
+  if(curated){
+    courseDB=curated;
+    setStatus(sEl,'searching',`🛰 Recognized "${curated.name}" in curated database. Fetching GPS hole geometry…`);
+  }else{
+    courseDB=null;
+  }
+
+  let data;
+  try{
+    const [s,n,w,e]=item.boundingbox.map(parseFloat);const pad=0.006;
+    const bbox=`${s-pad},${w-pad},${n+pad},${e+pad}`;
+    const q=`[out:json][timeout:30];\n(\n  way["golf"="hole"](${bbox});\n  relation["golf"="hole"](${bbox});\n);\nout geom tags;`;
+    const res=await overpassQuery(q);
+    data=res.data;
+  }catch(e){
+    apiStatus.overpass={...apiStatus.overpass,status:'error',note:e.message.slice(0,140)};
+    if(curated){
+      // Even without OSM, we can populate yardages from the curated database
+      applyCuratedYardages(curated);
+      setStatus(sEl,'warning',`⚠ Overpass unreachable, using curated scorecard for ${curated.name}. (Network/CORS error: ${e.message.slice(0,120)})`);
+    }else{
+      setStatus(sEl,'error',`⚠ Failed to reach Overpass API. ${e.message.slice(0,160)}. Paste a scorecard below to proceed.`);
+    }
+    return;
+  }
+  try{
+    const holes=parseOverpassElements(data.elements);
+    const count=Object.keys(holes).length;
+    if(!count){
+      apiStatus.overpass={...apiStatus.overpass,status:'error',note:'No hole data in OSM'};
+      if(curated){
+        applyCuratedYardages(curated);
+        setStatus(sEl,'ok',`✓ No GPS holes in OSM, using curated scorecard for ${curated.name}.`);
+      }else{
+        setStatus(sEl,'warning','⚠ No GPS hole data in OpenStreetMap for this course. Paste a scorecard below for accurate yardages.');
+      }
+      showCol('holeDirTh','hole-dir-cell',false);return;
+    }
+    apiStatus.overpass={...apiStatus.overpass,status:'ok',note:`${count} holes`};
+    // Compute GPS sum for proportional tee scaling
+    const gpsSum=Object.values(holes).reduce((s,h)=>s+(h.distYards||0),0);
+    const currentTee=document.getElementById('teeColor').value;
+    document.querySelectorAll('#holeBody tr[data-hole]').forEach(tr=>{
+      const i=parseInt(tr.dataset.hole);
+      const h=holes[i];if(!h)return;
+      tr.dataset.bearing=h.bearing;
+      if(h.teeLat!==undefined){tr.dataset.teeLat=h.teeLat;tr.dataset.teeLon=h.teeLon;tr.dataset.greenLat=h.greenLat;tr.dataset.greenLon=h.greenLon;}
+      tr.querySelector('.dir-badge').textContent=`${bComp(h.bearing)} (${Math.round(h.bearing)}°)`;
+      if(h.par)tr.querySelector('.hole-par').value=h.par;
+      // Build per-tee yardage map for this hole
+      const di=tr.querySelector('.hole-dist');
+      if(h.distYards){
+        const distByTee=buildDistByTee(i,h.distYards,gpsSum,curated);
+        tr.dataset.distByTee=JSON.stringify(distByTee);
+        const v=distByTee[currentTee]??Math.round(h.distYards);
+        di.value=v;
+        di.title=curated?`${currentTee} tee · scaled to curated total`:'GPS straight-line estimate';
+      }
+    });
+    if(curated&&curated.pars&&curated.pars.length===18){
+      curated.pars.forEach((p,idx)=>{
+        const tr=document.querySelector(`#holeBody tr[data-hole="${idx+1}"]`);
+        if(tr)tr.querySelector('.hole-par').value=String(p);
+      });
+    }
+    showCol('holeDirTh','hole-dir-cell',true);
+    updateYardageTotals();
+    updateHoleWinds();
+    const hasCoords=Object.values(holes).some(h=>h.teeLat!==undefined);
+    if(hasCoords){
+      setStatus(sEl,'searching',`✓ Yardages for ${count} holes. Fetching elevation data…`);
+      await fetchElevations(holes);
+      const withElev=Object.values(holes).filter(h=>h.elevAdjYards!==undefined).length;
+      if(withElev){
+        showCol('holeSlopeTh','hole-slope-cell',true);
+        document.querySelectorAll('#holeBody tr[data-hole]').forEach(tr=>{
+          const h=holes[parseInt(tr.dataset.hole)];if(!h||h.elevAdjYards===undefined)return;
+          tr.dataset.elevAdj=h.elevAdjYards;
+          tr.dataset.teeElev=h.teeElev!==undefined?Math.round(h.teeElev):'';
+          tr.dataset.greenElev=h.greenElev!==undefined?Math.round(h.greenElev):'';
+          const adjLabel=h.elevAdjYards===0?'Flat':`${h.elevAdjYards>0?'+':''}${h.elevAdjYards} yds`;
+          const rawLabel=(h.teeElev!==undefined&&h.greenElev!==undefined)?` (${Math.round(h.teeElev)}m→${Math.round(h.greenElev)}m)`:'';
+          tr.querySelector('.slope-badge').textContent=adjLabel+rawLabel;
+        });
+        setStatus(sEl,'ok',`✓ Yardages + slope for ${withElev} holes. Wind auto-set per hole.`);
+      }else{setStatus(sEl,'warning',`✓ Yardages for ${count} holes (elevation data unavailable — slope adjustments disabled). Wind auto-set per hole.`);}
+    }else{setStatus(sEl,'ok',`✓ Yardages for ${count} holes. Wind auto-set per hole.`);}
+    renderHoleDiagrams();
+  }catch(e){
+    console.error('selectCourse processing error',e);
+    apiStatus.overpass={...apiStatus.overpass,status:'error',note:'Parse error: '+(e.message||'').slice(0,100)};
+    setStatus(sEl,'error',`⚠ Got Overpass response but failed to parse it: ${e.message||'unknown error'}`);
+  }
+}
+
+async function fetchYardages(){
+  if(!lastCourseItem){alert('Search and select a course first.');return;}
+  const name=document.getElementById('courseName').value;
+  await selectCourse(lastCourseItem,name);
+}
+
+function onTeeChange(){
+  const tee=document.getElementById('teeColor').value;
+  const el=document.getElementById('cardStatus');
+  let updated=0,total=0;
+  document.querySelectorAll('#holeBody tr[data-hole]').forEach(tr=>{
+    if(!tr.dataset.distByTee)return;
+    total++;
+    try{
+      const map=JSON.parse(tr.dataset.distByTee);
+      if(map[tee]!=null){
+        const di=tr.querySelector('.hole-dist');
+        di.value=map[tee];
+        di.title=`${tee} tee yardage`;
+        updated++;
+      }
+    }catch{}
+  });
+  updateYardageTotals();
+  if(total===0){
+    if(lastCourseItem){
+      setStatus(el,'warning',`⚠ Tee changed to ${tee}. No per-tee data yet — fetch yardages or paste a multi-tee scorecard below.`);
+    }
+    return;
+  }
+  if(updated===total){
+    setStatus(el,'ok',`✓ Switched to ${tee} tees — ${updated} hole yardages updated.`);
+  }else{
+    setStatus(el,'warning',`⚠ Switched to ${tee} tees — ${updated}/${total} holes had ${tee} data. Paste a scorecard with the ${tee} row to fill the rest.`);
+  }
+}
+
+function parseOverpassElements(elements){
+  const holes={};
+  for(const el of elements){
+    const ref=parseInt(el.tags?.ref);if(isNaN(ref)||ref<1||ref>18||holes[ref])continue;
+    const par=el.tags?.par?parseInt(el.tags.par):null;
+    let bearing=null,distYards=null,teeLat,teeLon,greenLat,greenLon;
+    if(el.type==='way'&&el.geometry?.length>=2){
+      const f=el.geometry[0],l=el.geometry[el.geometry.length-1];
+      bearing=calcBearing(f.lat,f.lon,l.lat,l.lon);distYards=haversineYards(f.lat,f.lon,l.lat,l.lon);
+      teeLat=f.lat;teeLon=f.lon;greenLat=l.lat;greenLon=l.lon;
+    }else if(el.type==='relation'&&el.members){
+      const tm=el.members.find(m=>m.role==='tee'&&m.geometry?.length);
+      const gm=el.members.find(m=>m.role==='green'&&m.geometry?.length);
+      if(tm&&gm){const tc=centroid(tm.geometry),gc=centroid(gm.geometry);bearing=calcBearing(tc.lat,tc.lon,gc.lat,gc.lon);distYards=haversineYards(tc.lat,tc.lon,gc.lat,gc.lon);teeLat=tc.lat;teeLon=tc.lon;greenLat=gc.lat;greenLon=gc.lon;}
+    }
+    if(bearing!==null)holes[ref]={bearing,par,distYards,teeLat,teeLon,greenLat,greenLon};
+  }
+  return holes;
+}
+
+async function fetchElevations(holes){
+  const nums=Object.keys(holes).filter(n=>holes[n].teeLat!==undefined);
+  if(!nums.length)return;
+  const clubs=getClubs();
+  const driverDist=(clubs.find(c=>/driver/i.test(c.name))?.distance)||250;
+
+  // Build point list: tee + fairway (at estimated drive landing) + green per hole
+  const pts=[];
+  const fwMeta={};
+  nums.forEach(n=>{
+    const h=holes[n];
+    const holeDist=h.distYards||400;
+    const fwDist=Math.min(driverDist,Math.max(30,holeDist-50));
+    const fwPt=(h.bearing!==null&&fwDist<holeDist-20)?destinationPoint(h.teeLat,h.teeLon,h.bearing,fwDist):null;
+    fwMeta[n]={fwDist:fwPt?fwDist:null,holeDist};
+    pts.push({lat:h.teeLat,lon:h.teeLon,n:parseInt(n),t:'tee'});
+    if(fwPt)pts.push({lat:fwPt.lat,lon:fwPt.lon,n:parseInt(n),t:'fairway',fwDist});
+    pts.push({lat:h.greenLat,lon:h.greenLon,n:parseInt(n),t:'green'});
+  });
+
+  // Fetch from USGS 3DEP Elevation Point Query Service (parallel, one request per point)
+  const usgsResults=await Promise.all(pts.map(p=>
+    fetch(`https://epqs.nationalmap.gov/v1/json?x=${p.lon}&y=${p.lat}&wkid=4326&units=Meters&includeDate=false`)
+      .then(r=>r.json())
+      .then(d=>(d.value!=null&&d.value>-9999)?parseFloat(d.value):null)
+      .catch(()=>null)
+  ));
+
+  let usgsCount=0;
+  usgsResults.forEach((elev,i)=>{
+    if(elev===null)return;
+    const p=pts[i];
+    if(p.t==='tee')holes[p.n].teeElev=elev;
+    else if(p.t==='fairway')holes[p.n].fairwayElev=elev;
+    else holes[p.n].greenElev=elev;
+    usgsCount++;
+  });
+
+  // Fall back to Open-Meteo for any holes still missing tee or green
+  const needFb=nums.filter(n=>holes[n].teeElev===undefined||holes[n].greenElev===undefined);
+  let omCount=0;
+  if(needFb.length){
+    try{
+      const fbPts=[];
+      needFb.forEach(n=>{const h=holes[n];fbPts.push({lat:h.teeLat,lon:h.teeLon,n:parseInt(n),t:'tee'});fbPts.push({lat:h.greenLat,lon:h.greenLon,n:parseInt(n),t:'green'});});
+      const lats=fbPts.map(p=>p.lat).join(','),lons=fbPts.map(p=>p.lon).join(',');
+      const data=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`).then(r=>r.json());
+      if(data.elevation){
+        data.elevation.forEach((elev,i)=>{
+          if(elev==null)return;
+          const p=fbPts[i];
+          if(p.t==='tee'&&holes[p.n].teeElev===undefined){holes[p.n].teeElev=elev;omCount++;}
+          else if(p.t==='green'&&holes[p.n].greenElev===undefined){holes[p.n].greenElev=elev;omCount++;}
+        });
+      }
+    }catch(e){console.warn('Open-Meteo elevation fallback failed:',e);}
+  }
+
+  // Build elevation profiles and overall badge adjustment
+  let profileCount=0,fwPtCount=0;
+  nums.forEach(n=>{
+    const h=holes[n];
+    if(h.teeElev===undefined||h.greenElev===undefined)return;
+    const {fwDist,holeDist}=fwMeta[n];
+    const profile=[{dist:0,elev:h.teeElev}];
+    if(h.fairwayElev!==undefined&&fwDist!==null){profile.push({dist:fwDist,elev:h.fairwayElev});fwPtCount++;}
+    profile.push({dist:holeDist,elev:h.greenElev});
+    holeElevProfiles[n]=profile;
+    h.elevAdjYards=elevDeltaToYards(h.greenElev-h.teeElev);
+    profileCount++;
+  });
+
+  const src=usgsCount>0&&usgsCount>=omCount?'USGS 3DEP':omCount>0?'Open-Meteo':'—';
+  apiStatus.elevation={...apiStatus.elevation,
+    label:usgsCount>0&&usgsCount>=omCount?'USGS 3DEP Elevation':'Open-Meteo Elevation',
+    status:profileCount>0?'ok':'error',
+    note:profileCount>0?`${src} · ${profileCount} holes · ${fwPtCount} fairway pts`:'No elevation data'};
+}
+
+/* ══ WEATHER ══ */
+async function fetchWeather(){
+  if(!courseLat||!courseLon){alert('Please search and select a course first (needed for location).');return;}
+  const date=document.getElementById('playDate').value;if(!date){alert('Please select a date of play.');return;}
+  const wEl=document.getElementById('weatherStatus');
+  setStatus(wEl,'searching','⛅ Fetching weather data from Open-Meteo…');
+  const today=new Date();today.setHours(0,0,0,0);
+  const play=new Date(date+'T12:00:00');
+  const diffDays=(play-today)/(86400000);
+  let data=null,usedDate=date,isHistorical=false,histNote='';
+  try{
+    if(diffDays>=-2&&diffDays<=14){
+      data=await fetch(fcastUrl(date)).then(r=>r.json());
+      if(!data?.hourly?.time?.length)data=null;
+    }
+    if(!data){
+      let archDate=new Date(play);
+      if(diffDays>14){archDate.setFullYear(archDate.getFullYear()-1);histNote=`(historical: ${archDate.getFullYear()}, same date)`;}
+      else{histNote='(historical archive)';}
+      usedDate=archDate.toISOString().split('T')[0];
+      data=await fetch(archiveUrl(usedDate)).then(r=>r.json());
+      isHistorical=true;
+    }
+    if(!data?.hourly?.time?.length){apiStatus.weather={...apiStatus.weather,status:'error',note:'No data returned'};setStatus(wEl,'error','⚠ Weather unavailable. Enter conditions manually.');return;}
+    apiStatus.weather={...apiStatus.weather,status:'ok',note:isHistorical?`Historical ${histNote}`:`Forecast for ${date}`};
+    applyWeather(data.hourly,isHistorical,histNote);
+  }catch(e){apiStatus.weather={...apiStatus.weather,status:'error',note:'Fetch failed'};setStatus(wEl,'error','⚠ Weather fetch failed. Enter conditions manually.');}
+}
+
+function fcastUrl(date){return `https://api.open-meteo.com/v1/forecast?latitude=${courseLat}&longitude=${courseLon}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=auto&start_date=${date}&end_date=${date}`;}
+function archiveUrl(date){return `https://archive-api.open-meteo.com/v1/archive?latitude=${courseLat}&longitude=${courseLon}&start_date=${date}&end_date=${date}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=auto`;}
+
+function applyWeather(hourly,isHistorical,histNote){
+  const time=document.getElementById('playTime').value||'09:00';
+  const startHour=parseInt(time.split(':')[0]);
+  const byHour={};
+  hourly.time.forEach((t,i)=>{
+    const h=new Date(t).getHours();
+    byHour[h]={temp:Math.round(hourly.temperature_2m[i]),windSpd:Math.round(hourly.wind_speed_10m[i]),windDirDeg:hourly.wind_direction_10m[i]};
+  });
+  const hoursArray=Array.from({length:18},(_,idx)=>{
+    const minElapsed=idx*(5*60/18);
+    return Math.min(startHour+Math.floor(minElapsed/60),23);
+  });
+  const rows=document.querySelectorAll('#holeBody tr[data-hole]');
+  rows.forEach((tr,idx)=>{
+    const h=byHour[hoursArray[idx]]||byHour[startHour]||Object.values(byHour)[0];if(!h)return;
+    const dir=deg2comp((h.windDirDeg+180)%360); // convert FROM → TO (toward)
+    tr.dataset.wxTemp=h.temp;tr.dataset.wxWindSpd=h.windSpd;tr.dataset.wxWindDir=dir;tr.dataset.wxWindDirDeg=h.windDirDeg;
+    const wxBase=h.windSpd>0?`${h.temp}°F · ${h.windSpd} mph ${windArrow(dir)}${dir}`:`${h.temp}°F · Calm`;
+    tr.querySelector('.wx-badge').innerHTML=wxBase+`<span class="wx-cond"></span>`;
+    if(tr.dataset.bearing){
+      const cond=windCondFromBearing(parseFloat(tr.dataset.bearing),dir,h.windSpd);
+      tr.querySelector('.hole-wind').value=cond;
+      const b=tr.querySelector('.dir-badge');
+      if(b)b.textContent=`${bComp(parseFloat(tr.dataset.bearing))} (${Math.round(parseFloat(tr.dataset.bearing))}°)`;
+      const wc=tr.querySelector('.wx-cond');if(wc&&WLABEL[cond])wc.textContent=` · ${WLABEL[cond]}`;
+    }
+  });
+  showCol('holeWxTh','hole-wx-cell',true);
+  const sw=byHour[startHour]||Object.values(byHour)[0];
+  if(sw){document.getElementById('temperature').value=sw.temp;document.getElementById('windSpeed').value=sw.windSpd;document.getElementById('windDir').value=deg2comp((sw.windDirDeg+180)%360);}
+  adjustNote();
+  renderWxSummary(byHour,startHour,hoursArray);
+  lastWxChartData={byHour,startHour,hoursArray};
+  renderWeatherCharts();
+  const wEl=document.getElementById('weatherStatus');
+  setStatus(wEl,isHistorical?'warning':'ok',`⛅ Weather loaded ${histNote}. Wind &amp; temp applied per hole.`);
+  disableWeatherSection();
+}
+
+function renderWxSummary(byHour,startHour,hoursArray){
+  const uniqueHours=[...new Set(hoursArray)];
+  const rows=uniqueHours.map(h=>{
+    const w=byHour[h];if(!w)return'';
+    const hh=String(h).padStart(2,'0');
+    const toDir=(w.windDirDeg+180)%360;
+    return `<tr><td>${hh}:00</td><td>${w.temp}°F</td><td>${w.windSpd} mph</td><td>toward ${deg2comp(toDir)} (${Math.round(toDir)}°)</td></tr>`;
+  }).join('');
+  document.getElementById('wxSummary').innerHTML=`<table><thead><tr><th>Hour</th><th>Temp</th><th>Wind</th><th>Direction</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ══ WEATHER CHARTS ══ */
+const WX_COLORS=['#3b82f6','#f59e0b','#ef4444','#a855f7','#10b981'];
+function renderWeatherCharts(){
+  const empty=document.getElementById('wxChartsEmpty'),content=document.getElementById('wxChartsContent');
+  if(!empty||!content)return;
+  if(!lastWxChartData){empty.style.display='';content.style.display='none';return;}
+  empty.style.display='none';content.style.display='';
+  const{byHour,hoursArray}=lastWxChartData;
+  const hours=[...new Set(hoursArray)].slice(0,5);
+  renderWindCompass(byHour,hours);
+  renderTempChart(byHour,hours);
+}
+
+function renderWindCompass(byHour,hours){
+  const svg=document.getElementById('windCompass');if(!svg)return;
+  svg.innerHTML='';
+  // Expand viewBox so staggered labels don't clip
+  svg.setAttribute('viewBox','0 0 360 360');
+  const ns='http://www.w3.org/2000/svg',cx=180,cy=180,R=100;
+  const mk=(tag,attrs)=>{const el=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));return el;};
+
+  // Outer ring + center dot
+  svg.appendChild(mk('circle',{cx,cy,r:R,fill:'rgba(240,253,244,0.6)',stroke:'#bbb','stroke-width':'1.5'}));
+  svg.appendChild(mk('circle',{cx,cy,r:4,fill:'#aaa'}));
+
+  // Crosshair lines
+  [[cx-R,cy,cx+R,cy],[cx,cy-R,cx,cy+R]].forEach(([x1,y1,x2,y2])=>svg.appendChild(mk('line',{x1,y1,x2,y2,stroke:'#ddd','stroke-width':'1'})));
+
+  // Cardinal & intercardinal labels (inside ring)
+  [['N',0,true],['E',90,true],['S',180,true],['W',270,true],['NE',45,false],['SE',135,false],['SW',225,false],['NW',315,false]].forEach(([lbl,deg,bold])=>{
+    const r=R+15,rad=deg*Math.PI/180;
+    const t=mk('text',{x:cx+r*Math.sin(rad),y:cy-r*Math.cos(rad),'text-anchor':'middle','dominant-baseline':'middle','font-size':bold?12:9,'font-weight':bold?700:400,fill:bold?'#444':'#aaa'});
+    t.textContent=lbl;svg.appendChild(t);
+  });
+
+  // Arrows — always extend to circle edge; stagger mph labels radially by index
+  hours.forEach((h,i)=>{
+    const w=byHour[h];if(!w)return;
+    const color=WX_COLORS[i%WX_COLORS.length];
+    const towardDeg=(w.windDirDeg+180)%360;
+    const rad=towardDeg*Math.PI/180;
+    const spd=w.windSpd;
+    if(spd<1)return;
+    const L=R; // always reach the circle edge
+    const tx=cx+L*Math.sin(rad),ty=cy-L*Math.cos(rad);
+
+    // Fat, transparent shaft
+    svg.appendChild(mk('line',{x1:cx,y1:cy,x2:tx,y2:ty,stroke:color,'stroke-width':'7','stroke-opacity':'0.32'}));
+
+    // Big arrowhead
+    const hl=20,hw=15;
+    const bx=tx-hl*Math.sin(rad),by=ty+hl*Math.cos(rad);
+    const lx=bx-(hw/2)*Math.cos(rad),ly=by-(hw/2)*Math.sin(rad);
+    const rx=bx+(hw/2)*Math.cos(rad),ry=by+(hw/2)*Math.sin(rad);
+    svg.appendChild(mk('polygon',{points:`${tx},${ty} ${lx},${ly} ${rx},${ry}`,fill:color,'fill-opacity':'0.38'}));
+
+    // MPH label — stagger each arrow's label progressively farther out
+    const lblR=R+18+i*17;
+    const lx2=cx+lblR*Math.sin(rad),ly2=cy-lblR*Math.cos(rad);
+    const t=mk('text',{x:lx2,y:ly2,'text-anchor':'middle','dominant-baseline':'middle','font-size':'10.5','font-weight':'700',fill:color});
+    t.textContent=spd+' mph';svg.appendChild(t);
+  });
+
+  // Legend
+  const legend=document.getElementById('windLegend');if(!legend)return;
+  legend.innerHTML=hours.map((h,i)=>{
+    const w=byHour[h];if(!w)return'';
+    const color=WX_COLORS[i%WX_COLORS.length];
+    const hh=String(h%12||12)+':00 '+(h<12?'AM':'PM');
+    const dir=w.windSpd>0?` · toward ${deg2comp((w.windDirDeg+180)%360)}`:'· Calm';
+    return `<span class="wx-legend-item"><span class="wx-legend-dot" style="background:${color}"></span>${hh}${dir}</span>`;
+  }).join('');
+}
+
+function renderTempChart(byHour,hours){
+  const svg=document.getElementById('tempChart');if(!svg)return;
+  svg.innerHTML='';
+  const ns='http://www.w3.org/2000/svg';
+  const mk=(tag,attrs,text)=>{const el=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));if(text!=null)el.textContent=text;return el;};
+  const W=400,H=220,pL=44,pR=16,pT=50,pB=38;
+  const cW=W-pL-pR,cH=H-pT-pB;
+
+  const pts=hours.map(h=>byHour[h]).filter(Boolean);
+  if(!pts.length)return;
+  const temps=pts.map(p=>p.temp);
+  const minT=Math.min(...temps)-4,maxT=Math.max(...temps)+4,range=(maxT-minT)||1;
+
+  const xs=hours.map((_,i)=>pL+(i/Math.max(hours.length-1,1))*cW);
+  const ys=pts.map(p=>pT+cH-((p.temp-minT)/range)*cH);
+
+  // Y grid + labels
+  for(let gi=0;gi<=4;gi++){
+    const gy=pT+(gi/4)*cH,gv=Math.round(maxT-(gi/4)*range);
+    svg.appendChild(mk('line',{x1:pL,y1:gy,x2:W-pR,y2:gy,stroke:'#e5e7eb','stroke-width':'1'}));
+    svg.appendChild(mk('text',{x:pL-6,y:gy,'text-anchor':'end','dominant-baseline':'middle','font-size':'10',fill:'#888'},gv+'°'));
+  }
+
+  // Area fill
+  if(xs.length>1){
+    const bottom=pT+cH;
+    const area=mk('path',{d:`M ${xs[0]},${bottom} `+xs.map((x,i)=>`L ${x},${ys[i]}`).join(' ')+` L ${xs[xs.length-1]},${bottom} Z`,fill:'rgba(59,130,246,0.10)'});
+    svg.appendChild(area);
+    const line=mk('path',{d:xs.map((x,i)=>`${i===0?'M':'L'} ${x},${ys[i]}`).join(' '),fill:'none',stroke:'#3b82f6','stroke-width':'2.5','stroke-linejoin':'round'});
+    svg.appendChild(line);
+  }
+
+  // Dots, temp labels, adj% labels, time labels
+  pts.forEach((p,i)=>{
+    svg.appendChild(mk('circle',{cx:xs[i],cy:ys[i],r:'5',fill:'#3b82f6',stroke:'white','stroke-width':'2'}));
+    // Temp label
+    svg.appendChild(mk('text',{x:xs[i],y:ys[i]-13,'text-anchor':'middle','font-size':'11','font-weight':'700',fill:'#1d4ed8'},p.temp+'°F'));
+    // Temp adjustment % above temp label
+    const adjPct=Math.round((p.temp-70)/10);
+    const adjStr=(adjPct>0?'+':'')+adjPct+'%';
+    const adjColor=adjPct>0?'#b45309':adjPct<0?'#1d4ed8':'#888';
+    svg.appendChild(mk('text',{x:xs[i],y:ys[i]-27,'text-anchor':'middle','font-size':'9.5','font-weight':'600',fill:adjColor},adjStr));
+    // X-axis time label
+    const h=hours[i];
+    svg.appendChild(mk('text',{x:xs[i],y:H-pB+14,'text-anchor':'middle','font-size':'10',fill:'#555'},String(h%12||12)+':00 '+(h<12?'AM':'PM')));
+  });
+
+  // Y-axis label
+  const yl=mk('text',{x:10,y:pT+cH/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':'10',fill:'#888',transform:`rotate(-90,10,${pT+cH/2})`},'Temp (°F)');
+  svg.appendChild(yl);
+}
+
+/* ══ BEARING / WIND / SLOPE ══ */
+function calcBearing(lat1,lon1,lat2,lon2){const r=d=>d*Math.PI/180,dL=r(lon2-lon1);const y=Math.sin(dL)*Math.cos(r(lat2)),x=Math.cos(r(lat1))*Math.sin(r(lat2))-Math.sin(r(lat1))*Math.cos(r(lat2))*Math.cos(dL);return(Math.atan2(y,x)*180/Math.PI+360)%360;}
+function haversineYards(la1,lo1,la2,lo2){const R=6371000,r=d=>d*Math.PI/180;const a=Math.sin(r(la2-la1)/2)**2+Math.cos(r(la1))*Math.cos(r(la2))*Math.sin(r(lo2-lo1)/2)**2;return 2*R*Math.asin(Math.sqrt(a))*1.09361;}
+function centroid(g){return{lat:g.reduce((s,p)=>s+p.lat,0)/g.length,lon:g.reduce((s,p)=>s+p.lon,0)/g.length};}
+function bComp(d){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16];}
+function deg2comp(d){return bComp((d+360)%360);}
+const COMPASS_PTS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function windArrow(dir){const idx=COMPASS_PTS.indexOf(dir);if(idx===-1)return'';const deg=idx*22.5;return`<span style="display:inline-block;transform:rotate(${deg}deg);line-height:1;">↑</span>`;}
+function windCondFromBearing(hb,wd,spd){
+  // wd is the direction wind is going TOWARD (display convention)
+  if(spd<2)return'calm';
+  const wTo=DIR_DEG[wd]??0;let a=hb-wTo;if(a>180)a-=360;if(a<-180)a+=360;
+  const h=-Math.cos(a*Math.PI/180);
+  if(Math.abs(h)<0.35){return Math.sin(a*Math.PI/180)>0?'crosswind-left':'crosswind-right';}
+  return h>0?'headwind':'tailwind';
+}
+function updateHoleWinds(){
+  const dir=document.getElementById('windDir').value,spd=parseFloat(document.getElementById('windSpeed').value)||0;
+  document.querySelectorAll('#holeBody tr').forEach(tr=>{
+    if(tr.dataset.bearing===undefined)return;
+    const cond=windCondFromBearing(parseFloat(tr.dataset.bearing),tr.dataset.wxWindDir||dir,parseFloat(tr.dataset.wxWindSpd||spd));
+    tr.querySelector('.hole-wind').value=cond;
+    const b=tr.querySelector('.dir-badge');if(b)b.textContent=`${bComp(parseFloat(tr.dataset.bearing))} (${Math.round(parseFloat(tr.dataset.bearing))}°)`;
+    const wc=tr.querySelector('.wx-cond');if(wc)wc.textContent=WLABEL[cond]?` · ${WLABEL[cond]}`:'';
+    else{const wx=tr.querySelector('.wx-badge');if(wx&&wx.textContent==='—')wx.textContent=WLABEL[cond]||'';}
+  });
+}
+function tempFactor(f){return 1+(f-70)/1000;}
+function windFactor(spd,cond){const s=Math.min(spd,40),c=cond.startsWith('crosswind')?'crosswind':cond;switch(c){case'headwind':return Math.max(0.75,1-0.01*s);case'tailwind':return Math.min(1.2,1+0.005*s);case'crosswind':return Math.max(0.85,1-0.0025*s);default:return 1;}}
+function rollWindMult(cond){const c=cond.startsWith('crosswind')?'crosswind':cond;return{headwind:0.5,tailwind:1.5,crosswind:1.0,calm:1.0}[c]??1.0;}
+function destinationPoint(lat,lon,brg,yds){const R=6371000,d=yds*0.9144,b=brg*Math.PI/180;const φ1=lat*Math.PI/180,λ1=lon*Math.PI/180;const φ2=Math.asin(Math.sin(φ1)*Math.cos(d/R)+Math.cos(φ1)*Math.sin(d/R)*Math.cos(b));const λ2=λ1+Math.atan2(Math.sin(b)*Math.sin(d/R)*Math.cos(φ1),Math.cos(d/R)-Math.sin(φ1)*Math.sin(φ2));return{lat:φ2*180/Math.PI,lon:((λ2*180/Math.PI)+540)%360-180};}
+function elevDeltaToYards(deltaM){return Math.round(deltaM<0?(-deltaM)*0.75*1.09361:-(deltaM*1.09361));}
+function interpolateElev(profile,dist){if(!profile||!profile.length)return null;if(dist<=profile[0].dist)return profile[0].elev;if(dist>=profile[profile.length-1].dist)return profile[profile.length-1].elev;for(let i=0;i<profile.length-1;i++){if(dist>=profile[i].dist&&dist<=profile[i+1].dist){const t=(dist-profile[i].dist)/(profile[i+1].dist-profile[i].dist);return profile[i].elev+t*(profile[i+1].elev-profile[i].elev);}}return profile[profile.length-1].elev;}
+function adjNote(){
+  const f=parseFloat(document.getElementById('temperature').value)||72,spd=parseFloat(document.getElementById('windSpeed').value)||0,dir=document.getElementById('windDir').value,cond=document.getElementById('windEffect').value;
+  const tf=tempFactor(f),wf=windFactor(spd,cond),net=tf*wf;
+  const sign=n=>(n>=0?'+':'')+n,label={calm:'Calm',crosswind:'Crosswind','crosswind-left':'Left Cross','crosswind-right':'Right Cross',headwind:'Headwind',tailwind:'Tailwind'}[cond]||cond;
+  document.getElementById('adjNote').innerHTML=`<strong>Adjustments:</strong> Temp ${f}°F → <strong>${sign(Math.round((tf-1)*100))}%</strong> &nbsp;|&nbsp; Wind ${spd} mph ${dir} (${label}) → <strong>${sign(Math.round((wf-1)*100))}%</strong> &nbsp;|&nbsp; <strong>Net: ${sign(Math.round((net-1)*100))}%</strong>`;
+  if(document.querySelector('#holeBody tr[data-bearing]'))updateHoleWinds();
+}
+const adjustNote=adjNote;
+
+/* ══ SCORECARD ══ */
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.getElementById('tabPaste').style.display=tab==='paste'?'':'none';
+  document.getElementById('tabImage').style.display=tab==='image'?'':'none';
+  if(tab==='image')loadTess();
+}
+/* Tee label aliases: maps free-text scorecard labels to canonical tee names */
+const TEE_ALIASES={
+  'black':'Black','championship':'Black','tips':'Black','pro':'Black','tournament':'Black',
+  'blue':'Blue','mens championship':'Blue','member':'Blue',
+  'white':'White','regular':'White','men':'White','mens':'White',
+  'gold':'Gold','silver':'Gold','senior':'Gold','seniors':'Gold','green':'Gold',
+  'red':'Red','ladies':'Red','forward':'Red','women':'Red','womens':'Red',
+};
+function detectTeeLabel(s){
+  if(!s)return null;
+  const k=s.toLowerCase().replace(/[^a-z\s]/g,' ').replace(/\s+/g,' ').trim();
+  if(TEE_ALIASES[k])return TEE_ALIASES[k];
+  // Check each word — most specific first (longer aliases first)
+  const aliases=Object.keys(TEE_ALIASES).sort((a,b)=>b.length-a.length);
+  for(const a of aliases){if(k.includes(a))return TEE_ALIASES[a];}
+  return null;
+}
+function extractYardageNumbers(line){
+  const re=/(?<![.\d])(\d{2,3})(?![.\d])/g,out=[];let m;
+  while((m=re.exec(line))!==null){const n=parseInt(m[1]);if(n>=80&&n<=749)out.push(n);}
+  return out;
+}
+function extractYardages(text){return extractYardageNumbers(text).slice(0,18);}
+function parseScorecardMultiTee(text){
+  const rows=[];
+  for(const ln of text.split(/\r?\n/)){
+    const nums=extractYardageNumbers(ln);
+    if(nums.length<9)continue;
+    // Tee label is anything alphabetic before the first qualifying number
+    const m=ln.match(/^([A-Za-z][A-Za-z\/\s\-']{0,40})/);
+    rows.push({label:m?detectTeeLabel(m[1]):null,yards:nums.slice(0,18),raw:ln.slice(0,80)});
+  }
+  return rows;
+}
+function applyYardages(ys){
+  ys.forEach((d,i)=>{
+    const tr=document.querySelector(`#holeBody tr[data-hole="${i+1}"]`);if(!tr)return;
+    tr.querySelector('.hole-dist').value=d;
+    if(!tr.dataset.bearing){const p=tr.querySelector('.hole-par');if(p)p.value=d<240?'3':d<460?'4':'5';}
+  });
+  updateYardageTotals();
+}
+function applyMultiTeeYardages(teeMap){
+  const currentTee=document.getElementById('teeColor').value;
+  for(let i=0;i<18;i++){
+    const tr=document.querySelector(`#holeBody tr[data-hole="${i+1}"]`);if(!tr)continue;
+    const map={};
+    for(const t in teeMap)if(teeMap[t][i]!=null)map[t]=teeMap[t][i];
+    // Merge with any existing per-tee data (e.g., GPS-scaled) so unknown tees stay populated
+    let existing={};
+    try{existing=tr.dataset.distByTee?JSON.parse(tr.dataset.distByTee):{};}catch{}
+    tr.dataset.distByTee=JSON.stringify({...existing,...map});
+    const v=map[currentTee]??existing[currentTee]??map.Blue??map.White??Object.values(map)[0];
+    if(v!=null)tr.querySelector('.hole-dist').value=v;
+    if(!tr.dataset.bearing&&v!=null){
+      const p=tr.querySelector('.hole-par');if(p)p.value=v<240?'3':v<460?'4':'5';
+    }
+  }
+  updateYardageTotals();
+}
+function parseScorecard(){
+  const text=document.getElementById('scorecardText').value;
+  const st=document.getElementById('parseStatus');
+  const rows=parseScorecardMultiTee(text);
+  const fullRows=rows.filter(r=>r.yards.length>=18);
+  const labeled=fullRows.filter(r=>r.label);
+  // Multi-tee mode: 2+ labeled 18-hole rows
+  if(labeled.length>=2){
+    const teeMap={};
+    labeled.forEach(r=>{if(!teeMap[r.label])teeMap[r.label]=r.yards;});
+    applyMultiTeeYardages(teeMap);
+    const tees=Object.keys(teeMap).join(', ');
+    st.className='parse-status parse-ok';
+    st.textContent=`✓ Multi-tee scorecard parsed: ${tees}. Switch the Tee dropdown to compare.`;
+    return;
+  }
+  // Single-row mode
+  if(fullRows.length){
+    applyYardages(fullRows[0].yards);
+    st.className='parse-status parse-ok';
+    st.textContent=`✓ Extracted ${fullRows[0].yards.length} hole distances${fullRows[0].label?` (${fullRows[0].label} tees)`:''}.`;
+    return;
+  }
+  // Loose fallback: collect any 18 numbers anywhere
+  const all=extractYardageNumbers(text);
+  if(all.length>=18){
+    applyYardages(all.slice(0,18));
+    st.className='parse-status parse-ok';
+    st.textContent='✓ Extracted 18 hole distances (single tee).';
+    return;
+  }
+  st.className='parse-status parse-err';
+  st.textContent=`⚠ Found ${all.length} yardage numbers. Need at least 18. Enter manually or paste a clearer scorecard.`;
+}
+
+/* ══ OCR ══ */
+function loadTess(){if(window.Tesseract||tessLoaded)return;tessLoaded=true;const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@4/dist/tesseract.min.js';s.onload=()=>{document.getElementById('ocrNote').textContent='OCR engine ready.';};s.onerror=()=>{document.getElementById('ocrNote').textContent='⚠ OCR engine failed to load.';};document.head.appendChild(s);}
+document.getElementById('imageInput').addEventListener('change',async function(){
+  const file=this.files[0];if(!file)return;
+  if(file.size>8*1024*1024){alert('Image too large (max 8 MB).');return;}
+  const prev=document.getElementById('imagePreview');prev.src=URL.createObjectURL(file);prev.style.display='block';
+  const noteEl=document.getElementById('ocrNote'),progEl=document.getElementById('ocrProgress'),barEl=document.getElementById('ocrBar'),pctEl=document.getElementById('ocrPct'),st=document.getElementById('parseStatus');
+  if(!window.Tesseract){loadTess();noteEl.textContent='Loading OCR…';await new Promise((res,rej)=>{const t=Date.now(),c=setInterval(()=>{if(window.Tesseract){clearInterval(c);res();}if(Date.now()-t>45000){clearInterval(c);rej();}},200);}).catch(()=>null);}
+  progEl.style.display='block';barEl.style.width='0%';pctEl.textContent='0%';
+  try{
+    const result=await Tesseract.recognize(file,'eng',{workerPath:'https://unpkg.com/tesseract.js@4/dist/worker.min.js',langPath:'https://tessdata.projectnaptha.com/4.0.0',corePath:'https://unpkg.com/tesseract.js-core@4/tesseract-core.wasm.js',logger:m=>{if(m.status==='recognizing text'){const p=Math.round(m.progress*100);barEl.style.width=p+'%';pctEl.textContent=p+'%';}}});
+    document.getElementById('scorecardText').value=result.data.text;switchTab('paste');parseScorecard();
+    document.getElementById('parseStatus').textContent+=' (from image OCR)';
+  }catch(e){st.className='parse-status parse-err';st.textContent='⚠ OCR failed. Try pasting text.';}
+  finally{progEl.style.display='none';noteEl.textContent='OCR complete.';}
+});
+
+/* ══ ROUND GENERATION ══ */
+function computeShots(holeData,clubs,globalTf,globalWindSpd,globalWindCond,rollPct,overrides={}){
+  // Per-hole weather overrides global
+  const hTemp=holeData.wxTemp;
+  const tf=hTemp!==null?tempFactor(hTemp):globalTf;
+  const windSpd=holeData.wxWindSpd!==null?holeData.wxWindSpd:globalWindSpd;
+  const windDir=holeData.wxWindDir;
+  // Determine wind condition
+  let windCond;
+  if(holeData.bearing!==null&&windDir&&windSpd>0){
+    windCond=windCondFromBearing(holeData.bearing,windDir,windSpd);
+  }else if(holeData.windOverride!=='auto'){
+    windCond=holeData.windOverride;
+  }else{
+    windCond=globalWindCond;
+  }
+  const wf=windFactor(windSpd,windCond);
+  let remaining=holeData.distance;
+  if(remaining<=0)return[];
+  let cumDist=0;
+
+  const allEff=clubs.filter(c=>c.distance>0).map(c=>({name:c.name,base:c.distance,eff:Math.round(c.distance*tf*wf)})).sort((a,b)=>b.eff-a.eff);
+
+  const shots=[];
+  for(let sn=1;sn<=10;sn++){
+    // On-green threshold
+    if(remaining<=ON_GREEN_THRESHOLD&&sn>1)break;
+    const isFirst=sn===1;
+    const effClubs=isFirst?allEff:allEff.filter(c=>!/\bdriver\b/i.test(c.name));
+    let chosen;const ov=overrides[sn];
+    if(ov)chosen=allEff.find(c=>c.name===ov);
+    if(!chosen){
+      const canReach=effClubs.some(c=>c.eff>=remaining);
+      if(canReach){
+        // Approach: pick club closest to target (may overshoot slightly)
+        chosen=effClubs.reduce((best,c)=>Math.abs(c.eff-remaining)<Math.abs(best.eff-remaining)?c:best);
+      }else{
+        // Lay up: pick longest available
+        chosen=effClubs[0];
+      }
+    }
+    const isApproach=chosen.eff>=remaining||effClubs.some(c=>c.eff>=remaining);
+    const carry=chosen.eff;
+    // Itemized adjustments
+    const tempAdj=Math.round(chosen.base*(tf-1));
+    const windAdj=Math.round(chosen.base*tf*(wf-1));
+    // Per-shot elevation: interpolate from the hole's elevation profile at cumulative distance
+    let shotElevAdj=0;
+    if(holeData.elevProfile){const sE=interpolateElev(holeData.elevProfile,cumDist),eE=interpolateElev(holeData.elevProfile,cumDist+carry);if(sE!==null&&eE!==null)shotElevAdj=elevDeltaToYards(eE-sE);}
+    const rwm=rollWindMult(windCond);
+    const roll=isApproach?0:Math.round(carry*(rollPct/100)*rwm);
+    const total=carry+roll+shotElevAdj;
+    cumDist+=total;
+    const left=remaining-total;
+    shots.push({shotNum:sn,club:chosen.name,isAuto:!ov,base:chosen.base,tempAdj,windAdj,elevAdj:shotElevAdj,carry,roll,total,remaining:left,windCond,windSpd,windDir:windDir||'—',temp:hTemp??Math.round((tf-1)*1000+70),isApproach});
+    remaining=left;
+    if(remaining<=0)break;
+  }
+  return shots;
+}
+
+function generateRound(){
+  const clubs=getClubs(),holes=getHoles();
+  const course=document.getElementById('courseName').value.trim()||'Unknown Course';
+  const tee=document.getElementById('teeColor').value,date=document.getElementById('playDate').value;
+  const f=parseFloat(document.getElementById('temperature').value)||72;
+  const windSpd=parseFloat(document.getElementById('windSpeed').value)||0;
+  const windDir=document.getElementById('windDir').value,windCond=document.getElementById('windEffect').value;
+  const rollPct=parseFloat(document.getElementById('rollPct').value)||5;
+  if(!clubs.length){alert('Please enter club distances in Step 3.');return;}
+  const played=holes.filter(h=>h.distance>0);
+  if(!played.length){alert('Please enter hole distances in Step 4.');return;}
+  const globalTf=tempFactor(f);
+  const holeResults=played.map(hole=>{
+    const shots=computeShots(hole,clubs,globalTf,windSpd,windCond,rollPct,{});
+    return{hole:hole.hole,par:hole.par,holeDist:hole.distance,elevAdjYards:hole.elevAdjYards,wxTemp:hole.wxTemp,wxWindSpd:hole.wxWindSpd,wxWindDir:hole.wxWindDir,shots,overrides:{}};
+  });
+  roundPlan={clubs,holes:played,globalTf,windSpd,windCond,rollPct,holeResults};
+  const dateStr=date?new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'';
+  document.getElementById('resTitle').textContent=`Round Plan — ${course}`;
+  document.getElementById('resSubtitle').textContent=[dateStr,tee+' Tees',`${f}°F`,windSpd>0?`${windSpd} mph ${windDir}`:'Calm'].filter(Boolean).join(' · ');
+  const totalShots=holeResults.reduce((s,h)=>s+h.shots.length,0);
+  const usage=countUsage(holeResults);
+  const sign=n=>(n>=0?'+':'')+n,gps=document.querySelectorAll('#holeBody tr[data-bearing]').length;
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="stat-box"><div class="stat-val">${played.length}</div><div class="stat-lbl">Holes</div></div>
+    <div class="stat-box"><div class="stat-val stat-total">${totalShots}</div><div class="stat-lbl">Total Shots</div></div>
+    <div class="stat-box"><div class="stat-val">${Object.keys(usage).length}</div><div class="stat-lbl">Clubs Used</div></div>
+    <div class="stat-box"><div class="stat-val">${sign(Math.round((globalTf-1)*100))}%</div><div class="stat-lbl">Temp Effect</div></div>
+    <div class="stat-box"><div class="stat-val">${sign(Math.round((windFactor(windSpd,windCond)-1)*100))}%</div><div class="stat-lbl">Wind Effect</div></div>
+    <div class="stat-box"><div class="stat-val">${gps}</div><div class="stat-lbl">GPS Holes</div></div>`;
+  renderShotTable();renderHistogram();renderApiSummary();
+  const res=document.getElementById('results');res.style.display='block';
+  setTimeout(()=>res.scrollIntoView({behavior:'smooth'}),50);
+}
+
+/* ══ OVERRIDE ══ */
+document.getElementById('shotTable').addEventListener('change',function(e){
+  if(!e.target.classList.contains('club-override'))return;
+  const hn=parseInt(e.target.dataset.hole),sn=parseInt(e.target.dataset.shot),cn=e.target.value;
+  if(!roundPlan)return;
+  const hr=roundPlan.holeResults.find(h=>h.hole===hn);if(!hr)return;
+  if(cn==='__auto__')delete hr.overrides[sn];else hr.overrides[sn]=cn;
+  const hd=roundPlan.holes.find(h=>h.hole===hn);
+  hr.shots=computeShots(hd,roundPlan.clubs,roundPlan.globalTf,roundPlan.windSpd,roundPlan.windCond,roundPlan.rollPct,hr.overrides);
+  const tb=document.getElementById(`hb-${hn}`);if(tb)fillHoleTbody(tb,hr);
+  const total=roundPlan.holeResults.reduce((s,h)=>s+h.shots.length,0);
+  const el=document.querySelector('.stat-total');if(el)el.textContent=total;
+  renderHistogram();
+});
+
+/* ══ RENDER ══ */
+function renderShotTable(){
+  const table=document.getElementById('shotTable');
+  table.querySelectorAll('tbody').forEach(tb=>tb.remove());
+  roundPlan.holeResults.forEach(hr=>{
+    const tb=document.createElement('tbody');tb.id=`hb-${hr.hole}`;table.appendChild(tb);fillHoleTbody(tb,hr);
+  });
+}
+
+function fillHoleTbody(tbody,hr){
+  tbody.innerHTML='';
+  // Slope and weather info for hole header
+  const slopeNote=hr.elevAdjYards?` · <span style="opacity:.8;">${hr.elevAdjYards>0?'+':''}${hr.elevAdjYards} yds slope</span>`:'';
+  const wxNote=hr.wxTemp!==null?` · <span style="opacity:.8;">⛅ ${Math.round(hr.wxTemp)}°F ${hr.wxWindSpd!==undefined?Math.round(hr.wxWindSpd)+' mph ':''} ${hr.wxWindDir||''}</span>`:'';
+  const hdr=document.createElement('tr');hdr.className='hole-header';
+  hdr.innerHTML=`<td>Hole ${hr.hole}</td><td>Par ${hr.par}</td><td>${hr.holeDist} yds${slopeNote}${wxNote}</td><td colspan="12"></td>`;
+  tbody.appendChild(hdr);
+  if(hr.shots.length===0){
+    const tr=document.createElement('tr');tr.innerHTML=`<td></td><td></td><td></td><td colspan="12" style="color:var(--muted);font-style:italic;">No distance entered</td>`;tbody.appendChild(tr);return;
+  }
+  hr.shots.forEach(s=>tbody.appendChild(createShotRow(hr,s)));
+  // If last shot has remaining ≤ ON_GREEN_THRESHOLD, show "on green" note
+  const last=hr.shots[hr.shots.length-1];
+  if(last&&last.remaining<=ON_GREEN_THRESHOLD){
+    const tr=document.createElement('tr');
+    const note=last.remaining<0?`✓ ${Math.abs(last.remaining)} yds past pin`:last.remaining===0?'✓ Exactly on the pin':`✓ Within ${last.remaining} yds — on the green`;
+    tr.innerHTML=`<td></td><td></td><td></td><td></td><td colspan="11"><span class="on-green">${note}</span></td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function adjCell(val){
+  if(val===0||val===undefined)return`<span class="adj-zero">—</span>`;
+  return val>0?`<span class="adj-plus">+${val}</span>`:`<span class="adj-minus">${val}</span>`;
+}
+
+function createShotRow(hr,s){
+  const tr=document.createElement('tr');
+  const isFirst=s.shotNum===1;
+  const avail=isFirst?roundPlan.clubs:roundPlan.clubs.filter(c=>!/\bdriver\b/i.test(c.name));
+  const ov=hr.overrides[s.shotNum]||'__auto__';
+  const opts=[`<option value="__auto__"${ov==='__auto__'?' selected':''}>${ov==='__auto__'?s.club+' ✓':'Auto'}</option>`,
+    ...avail.map(c=>`<option value="${c.name}"${c.name===ov?' selected':''}>${c.name} (${c.distance})</option>`)
+  ].join('');
+  const rollDisplay=s.roll>0?`<span class="adj-plus">+${s.roll}</span>`:`<span class="adj-zero">—</span>`;
+  const windDisplay=roundPlan.windSpd>0||s.windSpd>0?`<span class="wind-pill">${WLABEL[s.windCond]||'—'} ${s.windSpd>0?Math.round(s.windSpd)+' mph':''}</span>`:'—';
+  const leftDisplay=s.remaining<0?`<span class="on-green">${s.remaining} yds ✓</span>`:s.remaining===0?'<span class="on-green">✓ In</span>':s.remaining<=ON_GREEN_THRESHOLD?`<span class="on-green">${s.remaining} yds ✓</span>`:s.remaining+' yds';
+  tr.innerHTML=`
+    <td></td><td></td><td></td>
+    <td><span class="badge">Shot ${s.shotNum}</span></td>
+    <td><select class="club-override" data-hole="${hr.hole}" data-shot="${s.shotNum}">${opts}</select></td>
+    <td style="font-size:.78rem;color:var(--muted);">${s.isAuto?'✓':'✎'}</td>
+    <td class="${isFirst?'tee-shot':''}">${s.base} yds</td>
+    <td>${adjCell(s.tempAdj)}</td>
+    <td>${adjCell(s.windAdj)}</td>
+    <td>${adjCell(s.elevAdj)}</td>
+    <td>${s.carry} yds</td>
+    <td>${rollDisplay}</td>
+    <td><strong>${s.total} yds</strong></td>
+    <td>${leftDisplay}</td>
+    <td>${windDisplay}</td>`;
+  return tr;
+}
+
+function countUsage(holeResults){const u={};holeResults.forEach(h=>h.shots.forEach(s=>{u[s.club]=(u[s.club]||0)+1;}));return u;}
+function renderHistogram(){
+  if(!roundPlan?.holeResults)return;
+  const usage=countUsage(roundPlan.holeResults),hist=document.getElementById('histogram');hist.innerHTML='';
+  const ord=roundPlan.clubs.map(c=>c.name);
+  const sorted=Object.entries(usage).sort((a,b)=>{const ai=ord.indexOf(a[0]),bi=ord.indexOf(b[0]);return(ai<0?999:ai)-(bi<0?999:bi);});
+  const max=Math.max(...Object.values(usage));
+  sorted.forEach(([club,count])=>{
+    const row=document.createElement('div');row.className='hist-row';
+    row.innerHTML=`<div class="hist-label">${club}</div><div class="hist-bar-bg"><div class="hist-bar" style="width:${(count/max)*100}%"></div></div><div class="hist-count">${count}×</div>`;
+    hist.appendChild(row);
+  });
+}
+
+function renderApiSummary(){
+  const el=document.getElementById('apiSummary');if(!el)return;
+  const icons={ok:'✓',error:'✗',unused:'—',partial:'⚠'};
+  const rows=Object.values(apiStatus).map(s=>`
+    <tr>
+      <td><strong>${s.label}</strong></td>
+      <td style="color:var(--muted);font-size:.78rem;">${s.desc}</td>
+      <td><span class="api-pill ${s.status}">${icons[s.status]||'—'} ${s.status==='unused'?'Not used':s.status==='ok'?'OK':s.status==='error'?'Error':'Partial'}</span></td>
+      <td style="color:var(--muted);font-size:.8rem;">${s.note||''}</td>
+    </tr>`).join('');
+  el.innerHTML=`<table class="api-summary-table"><thead><tr><th>Source</th><th>Used For</th><th>Status</th><th>Details</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ══ HOLE DIAGRAMS (Leaflet aerial imagery) ══ */
+const holeMaps={};
+let leafletLoaded=false;
+
+async function ensureLeaflet(){
+  if(leafletLoaded||window.L){leafletLoaded=true;return;}
+  const link=document.createElement('link');link.rel='stylesheet';
+  link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  document.head.appendChild(link);
+  await new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
+  leafletLoaded=true;
+}
+
+function holeZoom(yards){return yards<130?19:yards<220?18:yards<380?17:yards<550?16:15;}
+
+function initHoleMaps(){
+  if(!window.L)return;
+  document.querySelectorAll('.hole-map-container').forEach(el=>{
+    const n=parseInt(el.dataset.hole);
+    if(holeMaps[n]){holeMaps[n].remove();delete holeMaps[n];}
+    const lat=parseFloat(el.dataset.lat),lon=parseFloat(el.dataset.lon);
+    if(isNaN(lat))return;
+    // Remove loading placeholder
+    const loader=el.parentElement.querySelector('.hole-map-loading');if(loader)loader.remove();
+    const map=L.map(el,{center:[lat,lon],zoom:parseInt(el.dataset.zoom),dragging:false,scrollWheelZoom:false,zoomControl:false,attributionControl:false,keyboard:false,tap:false});
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(map);
+    const teeLat=parseFloat(el.dataset.teeLat),teeLon=parseFloat(el.dataset.teeLon);
+    const greenLat=parseFloat(el.dataset.greenLat),greenLon=parseFloat(el.dataset.greenLon);
+    if(!isNaN(teeLat)&&!isNaN(greenLat)){
+      L.polyline([[teeLat,teeLon],[greenLat,greenLon]],{color:'white',weight:2,opacity:.7,dashArray:'5 5'}).addTo(map);
+      L.marker([teeLat,teeLon],{icon:L.divIcon({html:'<div style="width:9px;height:9px;background:white;border:2px solid #333;border-radius:2px;"></div>',iconSize:[9,9],iconAnchor:[4,4],className:''})}).addTo(map);
+      L.marker([greenLat,greenLon],{icon:L.divIcon({html:'<div style="width:9px;height:9px;background:#cc2222;border:2px solid #333;border-radius:50%;"></div>',iconSize:[9,9],iconAnchor:[4,4],className:''})}).addTo(map);
+    }
+    // Rotate map so tee is at bottom and green is at top
+    const bearing=parseFloat(el.dataset.bearing);
+    if(!isNaN(bearing))el.style.transform=`rotate(${-bearing}deg)`;
+    holeMaps[n]=map;
+  });
+}
+
+function renderHoleDiagrams(){
+  const grid=document.getElementById('holeDiagramGrid');if(!grid)return;
+  // Destroy existing maps
+  Object.values(holeMaps).forEach(m=>m.remove());
+  Object.keys(holeMaps).forEach(k=>delete holeMaps[k]);
+  const hasCourseCenter=courseLat&&courseLon;
+  const holes=[];
+  for(let i=1;i<=18;i++){
+    const tr=document.querySelector(`#holeBody tr[data-hole="${i}"]`);
+    if(!tr){holes.push(null);continue;}
+    const dist=parseInt(tr.querySelector('.hole-dist')?.value)||0;
+    const par=parseInt(tr.querySelector('.hole-par')?.value)||4;
+    const teeLat=parseFloat(tr.dataset.teeLat),teeLon=parseFloat(tr.dataset.teeLon);
+    const greenLat=parseFloat(tr.dataset.greenLat),greenLon=parseFloat(tr.dataset.greenLon);
+    let hasGps=!isNaN(teeLat)&&!isNaN(greenLat);
+    // Validate: if the hole midpoint is >1.5km from the course center it's likely wrong OSM data
+    if(hasGps&&hasCourseCenter){
+      const midLat=(teeLat+greenLat)/2,midLon=(teeLon+greenLon)/2;
+      const distFromCenter=haversineYards(midLat,midLon,courseLat,courseLon);
+      if(distFromCenter>1640)hasGps=false; // 1640 yards ≈ 1.5 km
+    }
+    const elevAdj=tr.dataset.elevAdj!==undefined&&tr.dataset.elevAdj!==''?parseFloat(tr.dataset.elevAdj):0;
+    const bearing=parseFloat(tr.dataset.bearing);
+    holes.push({n:i,par,dist,teeLat,teeLon,greenLat,greenLon,hasGps,elevAdj,bearing});
+  }
+  if(!hasCourseCenter&&!holes.some(h=>h&&h.hasGps)){grid.innerHTML='<div class="hole-diagrams-empty">Search and select a course to see aerial imagery.</div>';return;}
+  grid.innerHTML='';
+  [{label:'Front 9',range:[0,9]},{label:'Back 9',range:[9,18]}].forEach(({label,range})=>{
+    const sec=document.createElement('div');
+    sec.innerHTML=`<div class="hole-section-title">${label}</div><div class="hole-diagram-row"></div>`;
+    grid.appendChild(sec);
+    const row=sec.querySelector('.hole-diagram-row');
+    holes.slice(range[0],range[1]).forEach(h=>{
+      if(!h)return;
+      const card=document.createElement('div');card.className='hole-card';
+      if(h.hasGps){
+        const midLat=(h.teeLat+h.greenLat)/2,midLon=(h.teeLon+h.greenLon)/2;
+        const zoom=holeZoom(h.dist);
+        const mapDiv=document.createElement('div');mapDiv.className='hole-map-container';
+        mapDiv.dataset.hole=h.n;mapDiv.dataset.lat=midLat;mapDiv.dataset.lon=midLon;mapDiv.dataset.zoom=zoom;
+        mapDiv.dataset.teeLat=h.teeLat;mapDiv.dataset.teeLon=h.teeLon;
+        mapDiv.dataset.greenLat=h.greenLat;mapDiv.dataset.greenLon=h.greenLon;
+        if(!isNaN(h.bearing))mapDiv.dataset.bearing=h.bearing;
+        card.appendChild(mapDiv);
+        // Loading placeholder (removed when map inits)
+        const loader=document.createElement('div');loader.className='hole-map-loading';loader.textContent='Loading…';
+        card.appendChild(loader);
+        const elevTxt=h.elevAdj>0?`▲ +${h.elevAdj}y`:h.elevAdj<0?`▼ ${h.elevAdj}y`:'';
+        const infoBar=document.createElement('div');infoBar.className='hole-info-bar';
+        infoBar.innerHTML=`<span>Par ${h.par}${h.dist?' · '+h.dist+' yds':''}</span>${elevTxt?`<span class="hole-elev-badge${h.elevAdj<0?' dn':''}">${elevTxt}</span>`:''}`;
+        card.appendChild(infoBar);
+        const badge=document.createElement('div');badge.className='hole-num-badge';badge.textContent=h.n;
+        card.appendChild(badge);
+        // Google Maps satellite link
+        const gmLink=document.createElement('a');gmLink.className='hole-gm-link';gmLink.href=`https://www.google.com/maps/@${midLat},${midLon},${zoom}z/data=!3m1!1e3`;gmLink.target='_blank';gmLink.rel='noopener';gmLink.title='Open in Google Maps satellite view';gmLink.textContent='⊕';
+        card.appendChild(gmLink);
+      }else if(hasCourseCenter){
+        // Fall back to course center with zoom that shows the whole course
+        const mapDiv=document.createElement('div');mapDiv.className='hole-map-container';
+        mapDiv.dataset.hole=h.n;mapDiv.dataset.lat=courseLat;mapDiv.dataset.lon=courseLon;mapDiv.dataset.zoom=15;
+        card.appendChild(mapDiv);
+        const loader=document.createElement('div');loader.className='hole-map-loading';loader.textContent='Loading…';
+        card.appendChild(loader);
+        const infoBar=document.createElement('div');infoBar.className='hole-info-bar';
+        infoBar.innerHTML=`<span>Par ${h.par}${h.dist?' · '+h.dist+' yds':''}</span><span style="font-size:.65rem;opacity:.75">Course view</span>`;
+        card.appendChild(infoBar);
+        const badge=document.createElement('div');badge.className='hole-num-badge';badge.textContent=h.n;
+        card.appendChild(badge);
+        const gmLink=document.createElement('a');gmLink.className='hole-gm-link';gmLink.href=`https://www.google.com/maps/@${courseLat},${courseLon},16z/data=!3m1!1e3`;gmLink.target='_blank';gmLink.rel='noopener';gmLink.title='Open in Google Maps satellite view';gmLink.textContent='⊕';
+        card.appendChild(gmLink);
+      }else{
+        card.innerHTML=`<div class="hole-no-gps"><strong>Hole ${h.n}</strong><small>No GPS</small></div>`;
+      }
+      row.appendChild(card);
+    });
+  });
+  if(window.L)initHoleMaps();
+}
+
+function switchMainTab(name){
+  document.getElementById('tab-planner').style.display=name==='planner'?'':'none';
+  document.getElementById('tab-holes').style.display=name==='holes'?'':'none';
+  document.getElementById('tab-weather').style.display=name==='weather'?'':'none';
+  document.getElementById('tab-about').style.display=name==='about'?'':'none';
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().includes(name)));
+  document.getElementById('tocNav').style.display=name==='planner'?'':'none';
+  if(name==='weather')renderWeatherCharts();
+  if(name==='holes'){
+    ensureLeaflet().then(()=>{
+      initHoleMaps();
+      // Leaflet needs the container to be visible before it can measure size
+      setTimeout(()=>Object.values(holeMaps).forEach(m=>m.invalidateSize()),80);
+    }).catch(e=>console.warn('Leaflet load failed:',e));
+  }
+}
+
+function setStatus(el,type,msg){el.className=`status-bar visible ${type}`;el.innerHTML=msg;}
+
+/* ══ WEATHER SECTION GRAY-OUT ══ */
+function disableWeatherSection(){
+  document.getElementById('sec-weather').classList.add('card-autofilled');
+  document.getElementById('wxOverrideBtn').style.display='';
+}
+function enableWeatherSection(){
+  document.getElementById('sec-weather').classList.remove('card-autofilled');
+  document.getElementById('wxOverrideBtn').style.display='none';
+}
+
+/* ══ TOC SCROLLSPY ══ */
+function tocClick(e,el){
+  e.preventDefault();
+  const target=document.querySelector(el.getAttribute('href'));
+  if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+}
+(function initToc(){
+  const sections=['sec-course','sec-weather','sec-bag','sec-card','sec-physics','results','res-plan','res-histogram','res-datasources'];
+  const tocLinks={};
+  sections.forEach(id=>{
+    const link=document.querySelector(`.toc-float a[href="#${id}"]`);
+    if(link)tocLinks[id]=link;
+  });
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting&&tocLinks[entry.target.id]){
+        Object.values(tocLinks).forEach(l=>l.classList.remove('active'));
+        tocLinks[entry.target.id].classList.add('active');
+      }
+    });
+  },{rootMargin:'-20% 0px -60% 0px',threshold:0});
+  sections.forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el);});
+  // Show/hide Results items when results become visible
+  const subIds=['toc-results','toc-res-plan','toc-res-histogram','toc-res-datasources'];
+  const resObs=new MutationObserver(()=>{
+    const visible=document.getElementById('results').style.display!=='none';
+    subIds.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=visible?'flex':'none';});
+  });
+  resObs.observe(document.getElementById('results'),{attributes:true,attributeFilter:['style']});
+})();
+
+/* ══ INIT ══ */
+(function init(){
+  populateClubs(loadBag()||DEFAULT_CLUBS);
+  initHoleTable();adjNote();
+  document.getElementById('playDate').valueAsDate=new Date();
+  ['temperature','windSpeed','windDir','windEffect'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',adjNote);
+    document.getElementById(id).addEventListener('change',adjNote);
+  });
+  bagReady=true;
+})();
+</script>
+</body>
+</html>
