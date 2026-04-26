@@ -56,7 +56,7 @@
     .search-results{position:absolute;z-index:100;background:white;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15);width:100%;max-width:520px;margin-top:.3rem;list-style:none;overflow:hidden;display:none;}
     .search-results li{padding:.6rem 1rem;cursor:pointer;display:flex;flex-direction:column;gap:.12rem;border-bottom:1px solid var(--border);font-size:.86rem;}
     .search-results li:last-child{border-bottom:none;}
-    .search-results li:hover{background:var(--green-pale);}
+    .search-results li:hover,.search-results li.highlighted{background:var(--green-pale);}
     .result-loc{font-size:.72rem;color:var(--muted);}
 
     .status-bar{margin-top:.65rem;padding:.5rem .9rem;border-radius:8px;font-size:.82rem;font-weight:500;display:none;}
@@ -238,7 +238,7 @@
         <label style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">Course Name</label>
         <div class="search-row" style="margin-top:.35rem;">
           <div class="search-wrapper">
-            <input type="text" id="courseName" placeholder="e.g. Pebble Beach Golf Links">
+            <input type="text" id="courseName" placeholder="e.g. Pebble Beach Golf Links" oninput="onCourseNameInput()" onkeydown="onCourseNameKeydown(event)" autocomplete="off">
             <ul class="search-results" id="searchResults"></ul>
           </div>
           <button class="btn btn-primary" onclick="searchCourse()" style="flex-shrink:0;white-space:nowrap;">🔍 Search</button>
@@ -252,8 +252,8 @@
         <div class="form-group">
           <label for="teeColor">Tee</label>
           <select id="teeColor" onchange="onTeeChange()">
-            <option value="Black">⚫ Black / Championship</option>
-            <option value="Blue" selected>🔵 Blue</option>
+            <option value="Black" selected>⚫ Black / Championship</option>
+            <option value="Blue">🔵 Blue</option>
             <option value="White">⚪ White</option>
             <option value="Gold">🟡 Gold</option>
             <option value="Red">🔴 Red / Senior</option>
@@ -619,7 +619,7 @@ const LS_KEY='golfBag_v2';
 const ON_GREEN_THRESHOLD=20; // yards — shots with remaining ≤ this are "on the green"
 
 /* ══ STATE ══ */
-let bagReady=false,saveTimer=null,tessLoaded=false;
+let bagReady=false,saveTimer=null,tessLoaded=false,searchDebounceTimer=null,searchHlIdx=-1;
 let courseLat=null,courseLon=null;
 let courseAltitudeFt=0;
 let roundPlan=null;
@@ -852,31 +852,48 @@ function showCol(thId,cellClass,show){
 }
 
 /* ══ COURSE SEARCH ══ */
-async function searchCourse(){
+function onCourseNameInput(){
+  clearTimeout(searchDebounceTimer);
+  const val=document.getElementById('courseName').value.trim();
+  if(val.length<3){document.getElementById('searchResults').style.display='none';return;}
+  searchDebounceTimer=setTimeout(()=>searchCourse(true),350);
+}
+function onCourseNameKeydown(e){
+  const list=document.getElementById('searchResults');
+  const items=list.querySelectorAll('li');
+  if(!items.length||list.style.display==='none'){if(e.key==='Enter'){e.preventDefault();searchCourse();}return;}
+  if(e.key==='ArrowDown'){e.preventDefault();searchHlIdx=Math.min(searchHlIdx+1,items.length-1);updateSearchHL(items);}
+  else if(e.key==='ArrowUp'){e.preventDefault();searchHlIdx=Math.max(searchHlIdx-1,0);updateSearchHL(items);}
+  else if(e.key==='Enter'){e.preventDefault();const t=searchHlIdx>=0?items[searchHlIdx]:items.length===1?items[0]:null;if(t)t.click();}
+  else if(e.key==='Escape'){list.style.display='none';searchHlIdx=-1;}
+}
+function updateSearchHL(items){items.forEach((li,i)=>li.classList.toggle('highlighted',i===searchHlIdx));}
+
+async function searchCourse(silent=false){
   const name=document.getElementById('courseName').value.trim();
-  if(!name){alert('Enter a course name first.');return;}
+  if(!name){if(!silent)alert('Enter a course name first.');return;}
   const rEl=document.getElementById('searchResults'),sEl=document.getElementById('gpsStatus');
-  rEl.style.display='none';rEl.innerHTML='';
-  setStatus(sEl,'searching','🔍 Searching…');
+  rEl.style.display='none';rEl.innerHTML='';searchHlIdx=-1;
+  if(!silent)setStatus(sEl,'searching','🔍 Searching…');
   try{
     const data=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name+' golf')}&format=json&limit=8&addressdetails=1`,{headers:{'Accept-Language':'en'}}).then(r=>r.json());
     const golf=data.filter(r=>r.class==='leisure'||r.type==='golf_course'||r.display_name.toLowerCase().includes('golf'));
     const list=golf.length?golf:data.slice(0,5);
-    if(!list.length){apiStatus.nominatim={...apiStatus.nominatim,status:'error',note:'No results'};setStatus(sEl,'warning','⚠ No results. Try a different spelling.');return;}
+    if(!list.length){apiStatus.nominatim={...apiStatus.nominatim,status:'error',note:'No results'};if(!silent)setStatus(sEl,'warning','⚠ No results. Try a different spelling.');return;}
     apiStatus.nominatim={...apiStatus.nominatim,status:'ok',note:`${list.length} result${list.length>1?'s':''}`};
     list.forEach(item=>{
       const li=document.createElement('li');
       const a=item.address||{};
       const loc=[a.city||a.town||a.county,a.state,a.country_code?.toUpperCase()].filter(Boolean).join(', ');
       li.innerHTML=`<strong>${item.display_name.split(',')[0]}</strong><span class="result-loc">${loc}</span>`;
-      li.onclick=()=>{rEl.style.display='none';selectCourse(item,item.display_name.split(',')[0]);};
+      li.onclick=()=>{rEl.style.display='none';searchHlIdx=-1;selectCourse(item,item.display_name.split(',')[0]);};
       rEl.appendChild(li);
     });
     rEl.style.display='block';
-    setStatus(sEl,'searching',`Found ${list.length} result${list.length>1?'s':''} — select one.`);
-    const close=e=>{if(!rEl.contains(e.target)){rEl.style.display='none';document.removeEventListener('click',close);}};
+    if(!silent)setStatus(sEl,'searching',`Found ${list.length} result${list.length>1?'s':''} — select one.`);
+    const close=e=>{if(!rEl.contains(e.target)&&e.target.id!=='courseName'){rEl.style.display='none';searchHlIdx=-1;document.removeEventListener('click',close);}};
     setTimeout(()=>document.addEventListener('click',close),0);
-  }catch(e){apiStatus.nominatim={...apiStatus.nominatim,status:'error',note:'Fetch failed'};setStatus(sEl,'error','⚠ Search failed. Check your connection.');}
+  }catch(e){apiStatus.nominatim={...apiStatus.nominatim,status:'error',note:'Fetch failed'};if(!silent)setStatus(sEl,'error','⚠ Search failed. Check your connection.');}
 }
 
 const OVERPASS_ENDPOINTS=[
@@ -1045,6 +1062,8 @@ function onTeeChange(){
   }
 }
 
+function pathLengthYards(geom){let d=0;for(let i=0;i<geom.length-1;i++)d+=haversineYards(geom[i].lat,geom[i].lon,geom[i+1].lat,geom[i+1].lon);return d;}
+
 function parseOverpassElements(elements){
   const holes={};
   for(const el of elements){
@@ -1053,7 +1072,9 @@ function parseOverpassElements(elements){
     let bearing=null,distYards=null,teeLat,teeLon,greenLat,greenLon;
     if(el.type==='way'&&el.geometry?.length>=2){
       const f=el.geometry[0],l=el.geometry[el.geometry.length-1];
-      bearing=calcBearing(f.lat,f.lon,l.lat,l.lon);distYards=haversineYards(f.lat,f.lon,l.lat,l.lon);
+      bearing=calcBearing(f.lat,f.lon,l.lat,l.lon);
+      // Sum all segments so doglegs are measured along the fairway path, not straight-line
+      distYards=pathLengthYards(el.geometry);
       teeLat=f.lat;teeLon=f.lon;greenLat=l.lat;greenLon=l.lon;
     }else if(el.type==='relation'&&el.members){
       const tm=el.members.find(m=>m.role==='tee'&&m.geometry?.length);
