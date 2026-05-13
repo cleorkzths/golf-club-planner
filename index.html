@@ -402,6 +402,7 @@
     <div class="results-title">
       <h2 id="resTitle">Round Plan</h2>
       <p id="resSubtitle"></p>
+      <button onclick="exportRoundHTML()" style="margin-top:.75rem;padding:.45rem 1.1rem;background:var(--green);color:white;border:none;border-radius:7px;font-size:.88rem;font-weight:600;cursor:pointer;letter-spacing:.02em;">⬇ Export to HTML</button>
     </div>
     <div class="card">
       <div class="card-head"><h2>Round Summary</h2></div>
@@ -2244,6 +2245,147 @@ function tocClick(e,el){
   });
   bagReady=true;
 })();
+
+/* ══ EXPORT ══ */
+function exportRoundHTML(){
+  if(!roundPlan?.holeResults?.length){alert('Generate a round plan first.');return;}
+  const courseName=document.getElementById('courseName').value||'Golf Course';
+  const roundDate=document.getElementById('roundDate').value||'';
+  const altFt=parseFloat(document.getElementById('courseAltitude').value)||0;
+  const temp=parseFloat(document.getElementById('temperature').value)||70;
+  const windSpd=parseFloat(document.getElementById('windSpeed').value)||0;
+  const windDir=document.getElementById('windDir').value||'';
+  const windCond=document.getElementById('windEffect').value;
+  const totalShots=roundPlan.holeResults.reduce((s,h)=>s+h.shots.length,0);
+  const usage=countUsage(roundPlan.holeResults);
+  const tf=tempFactor(temp),af=altFactor(altFt),wf=windFactor(windSpd,windCond);
+  const condLine=[`${temp}°F`,windSpd>0?`${windSpd} mph ${windDir}`:'Calm',altFt>0?`${altFt.toLocaleString()} ft altitude`:''].filter(Boolean).join(' · ');
+
+  // Shot plan cards
+  const ON_GRN=20;
+  const shotPlanHtml=roundPlan.holeResults.map(hr=>{
+    const slopeNote=hr.elevAdjYards?` · ${hr.elevAdjYards>0?'+':''}${hr.elevAdjYards} yds slope`:'';
+    const shots=hr.shots.map(s=>{
+      const rollStr=s.roll>0?` (+${s.roll} roll)`:'';
+      const onGreen=s.remaining<=ON_GRN;
+      const leftStr=s.remaining<0?`✓ ${Math.abs(s.remaining)} yds past`:s.remaining===0?'✓ On pin':onGreen?`✓ ${s.remaining} yds away`:`${s.remaining} yds left`;
+      return `<div class="shot-row"><span class="shot-num">Shot ${s.shotNum}</span><span class="shot-club">${s.club}</span><span class="shot-dist">${s.total} yds${rollStr}</span><span class="shot-left${onGreen?' on-green':''}">${leftStr}</span></div>`;
+    }).join('');
+    return `<div class="hole-card"><div class="hole-hdr">Hole ${hr.hole} &nbsp;·&nbsp; Par ${hr.par} &nbsp;·&nbsp; ${hr.holeDist} yds${slopeNote}</div>${shots}</div>`;
+  }).join('');
+
+  // Histogram
+  const ord=roundPlan.clubs.map(c=>c.name);
+  const sorted=Object.entries(usage).sort((a,b)=>{const ai=ord.indexOf(a[0]),bi=ord.indexOf(b[0]);return(ai<0?999:ai)-(bi<0?999:bi);});
+  const maxCnt=Math.max(...Object.values(usage));
+  const histHtml=sorted.map(([club,count])=>`<div class="hist-row"><div class="hist-lbl">${club}</div><div class="hist-bg"><div class="hist-bar" style="width:${(count/maxCnt)*100}%"></div></div><div class="hist-cnt">${count}×</div></div>`).join('');
+
+  // Weather adj table
+  let wxHtml='<p style="color:#888;font-size:.88rem;">No weather data loaded.</p>';
+  if(lastWxChartData){
+    const{byHour,hoursArray}=lastWxChartData;
+    const hours=[...new Set(hoursArray)].slice(0,5);
+    const rows=hours.map(h=>{
+      const wx=byHour[h];if(!wx)return'';
+      const htf=tempFactor(wx.temp),combined=(htf*af-1)*100;
+      const sign=combined>=0?'+':'';
+      const color=combined>0?'#b45309':combined<0?'#1d4ed8':'#888';
+      const hLbl=String(h%12||12)+':00 '+(h<12?'AM':'PM');
+      return `<tr><td>${hLbl}</td><td>${wx.temp}°F</td><td style="font-weight:700;color:${color};">${sign}${Math.abs(combined).toFixed(1)}%</td></tr>`;
+    }).join('');
+    wxHtml=`<table class="wx-tbl"><thead><tr><th>Hour</th><th>Temp</th><th>Carry Adj</th></tr></thead><tbody>${rows}</tbody></table>`;
+    if(altFt>0)wxHtml+=`<p style="font-size:.78rem;color:#888;margin-top:.5rem;">Altitude ${altFt.toLocaleString()} ft → ${pct1((af-1)*100)} fixed bonus included.</p>`;
+  }
+
+  // Stats grid
+  const statsHtml=[
+    ['Holes',roundPlan.holeResults.length],
+    ['Total Shots',totalShots],
+    ['Clubs Used',Object.keys(usage).length],
+    ['Temp Effect',pct1((tf-1)*100)],
+    ['Wind Effect',pct1((wf-1)*100)],
+    ...(altFt>0?[['Altitude',pct1((af-1)*100)]]:[]),
+  ].map(([lbl,val])=>`<div class="stat-box"><div class="stat-val">${val}</div><div class="stat-lbl">${lbl}</div></div>`).join('');
+
+  const html=`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${courseName} — Round Plan</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0fdf4;color:#1a2e1a;}
+header{background:#166534;color:#fff;padding:1rem;text-align:center;}
+header h1{font-size:1.15rem;font-weight:700;}
+header p{font-size:.82rem;opacity:.82;margin-top:.25rem;}
+.tabs{display:flex;background:#14532d;position:sticky;top:0;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,.18);}
+.tab-btn{flex:1;padding:.65rem .2rem;background:none;border:none;border-bottom:3px solid transparent;color:rgba(255,255,255,.65);font-size:.8rem;font-weight:600;cursor:pointer;transition:.15s;-webkit-tap-highlight-color:transparent;}
+.tab-btn.active{color:#fff;border-bottom-color:#4ade80;}
+.tab-pane{display:none;padding:1rem;}
+.tab-pane.active{display:block;}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:1.1rem;}
+.stat-box{background:#fff;border-radius:10px;padding:.7rem .4rem;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+.stat-val{font-size:1.35rem;font-weight:700;color:#166534;line-height:1.1;}
+.stat-lbl{font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:#666;margin-top:.2rem;}
+.cond-pills{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;}
+.pill{background:#dcfce7;color:#14532d;border-radius:6px;padding:.25rem .65rem;font-size:.82rem;font-weight:600;}
+.hole-card{background:#fff;border-radius:10px;margin-bottom:.75rem;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+.hole-hdr{background:#dcfce7;padding:.55rem .9rem;font-weight:700;font-size:.88rem;color:#14532d;border-bottom:1px solid #bbf7d0;}
+.shot-row{display:flex;align-items:center;gap:.5rem;padding:.48rem .9rem;border-bottom:1px solid #f3f4f6;flex-wrap:wrap;}
+.shot-row:last-child{border-bottom:none;}
+.shot-num{font-size:.72rem;background:#e5e7eb;border-radius:4px;padding:.1rem .38rem;font-weight:600;white-space:nowrap;}
+.shot-club{font-weight:700;flex:1;min-width:80px;font-size:.92rem;}
+.shot-dist{font-size:.85rem;color:#555;white-space:nowrap;}
+.shot-left{font-size:.83rem;color:#555;white-space:nowrap;}
+.shot-left.on-green{color:#15803d;font-weight:700;}
+.hist-row{display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem;}
+.hist-lbl{width:80px;font-size:.83rem;font-weight:600;text-align:right;flex-shrink:0;color:#333;}
+.hist-bg{flex:1;background:#e5e7eb;border-radius:4px;height:22px;}
+.hist-bar{background:#16a34a;border-radius:4px;height:100%;min-width:4px;}
+.hist-cnt{font-size:.85rem;font-weight:700;color:#166534;width:26px;text-align:right;flex-shrink:0;}
+.wx-tbl{width:100%;border-collapse:collapse;font-size:.9rem;}
+.wx-tbl th{text-align:left;padding:.38rem .5rem;border-bottom:2px solid #e5e7eb;color:#666;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;}
+.wx-tbl td{padding:.38rem .5rem;border-bottom:1px solid #f3f4f6;}
+.sec-title{font-size:.9rem;font-weight:700;color:#14532d;margin-bottom:.7rem;}
+</style>
+</head>
+<body>
+<header><h1>${courseName}</h1><p>${roundDate?roundDate+' &nbsp;·&nbsp; ':''}${condLine}</p></header>
+<nav class="tabs">
+  <button class="tab-btn active" onclick="show('summary',this)">Summary</button>
+  <button class="tab-btn" onclick="show('shots',this)">Shots</button>
+  <button class="tab-btn" onclick="show('clubs',this)">Clubs</button>
+  <button class="tab-btn" onclick="show('weather',this)">Weather</button>
+</nav>
+<div id="p-summary" class="tab-pane active">
+  <div class="stats-grid">${statsHtml}</div>
+  <p class="sec-title">Conditions</p>
+  <div class="cond-pills">
+    <span class="pill">🌡 ${temp}°F</span>
+    ${windSpd>0?`<span class="pill">💨 ${windSpd} mph ${windDir}</span>`:'<span class="pill">Calm</span>'}
+    ${altFt>0?`<span class="pill">⛰ ${altFt.toLocaleString()} ft</span>`:''}
+  </div>
+</div>
+<div id="p-shots" class="tab-pane">${shotPlanHtml}</div>
+<div id="p-clubs" class="tab-pane"><p class="sec-title">Club Usage</p>${histHtml}</div>
+<div id="p-weather" class="tab-pane"><p class="sec-title">Carry Adjustment by Hour</p><p style="font-size:.82rem;color:#666;margin-bottom:.75rem;">Temp + altitude combined, excl. wind &amp; slope.</p>${wxHtml}</div>
+<script>
+function show(name,btn){
+  document.querySelectorAll('.tab-pane').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('p-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+<\/script>
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=(courseName.replace(/[^a-z0-9]/gi,'_')||'round')+'_plan.html';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
