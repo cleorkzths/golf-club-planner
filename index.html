@@ -572,11 +572,11 @@
         <div class="about-card-body">
           <p>Wind factor is multiplied on top of the temperature-adjusted carry. Headwind hurts more than tailwind helps. When GPS hole bearings are available, diagonal winds are <strong>vector-decomposed</strong> into parallel and perpendicular components so both effects apply simultaneously.</p>
           <table class="about-source-table" style="margin-bottom:.7rem;">
-            <thead><tr><th>Component</th><th>Formula (speed capped at 40 mph)</th><th>Cap</th></tr></thead>
+            <thead><tr><th>Component</th><th>Formula (wind speed capped at 30 mph)</th><th>Max effect at 30 mph</th></tr></thead>
             <tbody>
-              <tr><td>Headwind (parallel)</td><td><span class="formula">1 − 0.01 × spd × |cos θ|</span></td><td>floor −25% (kicks in at 25 mph)</td></tr>
-              <tr><td>Tailwind (parallel)</td><td><span class="formula">1 + 0.007 × spd × cos θ</span></td><td>+28% at 40 mph</td></tr>
-              <tr><td>Crosswind (perpendicular)</td><td><span class="formula">1 − 0.0015 × spd × |sin θ|</span></td><td>−6% at 40 mph</td></tr>
+              <tr><td>Headwind (parallel)</td><td><span class="formula">1 − 0.01 × spd × |cos θ|</span></td><td>−30%</td></tr>
+              <tr><td>Tailwind (parallel)</td><td><span class="formula">1 + 0.007 × spd × cos θ</span></td><td>+21%</td></tr>
+              <tr><td>Crosswind (perpendicular)</td><td><span class="formula">1 − 0.0015 × spd × |sin θ|</span></td><td>−4.5%</td></tr>
             </tbody>
           </table>
           <p style="font-size:.85em;color:var(--muted)">θ = angle between hole bearing and wind direction. Combined factor = tailwind component × crosswind component.</p>
@@ -1469,11 +1469,11 @@ function pct1(v){return(v>=0?'+':'')+Math.abs(v).toFixed(1)+'%';}   // e.g. +2.4
 function pctR(v){return(v>=0?'+':'')+Math.round(v)+'%';}             // e.g. +3%
 function tempFactor(f){return 1+(f-70)/1000;}
 function altFactor(ft){return 1+ft/50000;}
-function windFactor(spd,cond){const s=Math.min(spd,40),c=cond.startsWith('crosswind')?'crosswind':cond;switch(c){case'headwind':return Math.max(0.75,1-0.01*s);case'tailwind':return Math.min(1.28,1+0.007*s);case'crosswind':return Math.max(0.94,1-0.0015*s);default:return 1;}}
+function windFactor(spd,cond){const s=Math.min(spd,30),c=cond.startsWith('crosswind')?'crosswind':cond;switch(c){case'headwind':return 1-0.01*s;case'tailwind':return 1+0.007*s;case'crosswind':return 1-0.0015*s;default:return 1;}}
 function rollWindMult(cond){const c=cond.startsWith('crosswind')?'crosswind':cond;return{headwind:0.5,tailwind:1.5,crosswind:1.0,calm:1.0}[c]??1.0;}
 // Diagonal-aware versions: decompose wind into parallel + perpendicular components
 function windAngle(hb,wd){const wTo=DIR_DEG[wd]??0;let a=hb-wTo;if(a>180)a-=360;if(a<-180)a+=360;return a;}
-function windFactorFromAngle(spd,a){if(spd<2)return 1;const s=Math.min(spd,40),rad=a*Math.PI/180,tail=Math.cos(rad),cross=Math.abs(Math.sin(rad));const tailF=tail>=0?Math.min(1.28,1+0.007*s*tail):Math.max(0.75,1-0.01*s*(-tail));const crossF=Math.max(0.94,1-0.0015*s*cross);return Math.max(0.72,tailF*crossF);}
+function windFactorFromAngle(spd,a){if(spd<2)return 1;const s=Math.min(spd,30),rad=a*Math.PI/180,tail=Math.cos(rad),cross=Math.abs(Math.sin(rad));const tailF=tail>=0?1+0.007*s*tail:1-0.01*s*(-tail);const crossF=1-0.0015*s*cross;return tailF*crossF;}
 function rollWindMultFromAngle(a){return Math.max(0.5,Math.min(1.5,1+0.5*Math.cos(a*Math.PI/180)));}
 function destinationPoint(lat,lon,brg,yds){const R=6371000,d=yds*0.9144,b=brg*Math.PI/180;const φ1=lat*Math.PI/180,λ1=lon*Math.PI/180;const φ2=Math.asin(Math.sin(φ1)*Math.cos(d/R)+Math.cos(φ1)*Math.sin(d/R)*Math.cos(b));const λ2=λ1+Math.atan2(Math.sin(b)*Math.sin(d/R)*Math.cos(φ1),Math.cos(d/R)-Math.sin(φ1)*Math.sin(φ2));return{lat:φ2*180/Math.PI,lon:((λ2*180/Math.PI)+540)%360-180};}
 function elevDeltaToYards(deltaM){return Math.round(deltaM<0?(-deltaM)*0.75*1.09361:-(deltaM*1.09361));}
