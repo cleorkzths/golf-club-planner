@@ -1622,9 +1622,45 @@ function applyMultiTeeYardages(teeMap){
   }
   updateYardageTotals();
 }
+/* Golf Genius column format: one token per line, triplets of [hole, yardage, par]
+   with OUT / IN / TOTAL subtotal rows interspersed. Detected by "Yardage" header line. */
+function parseGolfGeniusColumnFormat(text){
+  if(!/^yardage\s*$/im.test(text))return null;
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>0);
+  let i=0;
+  // Skip header: Hole / Yardage / Par
+  while(i<lines.length&&/^(hole|yardage|par)$/i.test(lines[i]))i++;
+  const holes=[];
+  while(i<lines.length&&holes.length<18){
+    const line=lines[i];
+    if(/^(out|in|total)$/i.test(line)){i+=3;continue;} // skip subtotal triplet
+    const holeNum=parseInt(line);
+    if(!isNaN(holeNum)&&holeNum>=1&&holeNum<=18&&i+2<lines.length){
+      const yards=parseInt(lines[i+1].replace(/,/g,''));
+      const par=parseInt(lines[i+2]);
+      if(yards>=80&&yards<=749&&par>=3&&par<=5){holes.push({num:holeNum,yards,par});i+=3;continue;}
+    }
+    i++;
+  }
+  return holes.length>=9?holes:null;
+}
+
 function parseScorecard(){
   const text=document.getElementById('scorecardText').value;
   const st=document.getElementById('parseStatus');
+  // Try Golf Genius column format first
+  const gg=parseGolfGeniusColumnFormat(text);
+  if(gg){
+    gg.forEach(h=>{
+      const tr=document.querySelector(`#holeBody tr[data-hole="${h.num}"]`);if(!tr)return;
+      tr.querySelector('.hole-dist').value=h.yards;
+      tr.querySelector('.hole-par').value=String(h.par);
+    });
+    updateYardageTotals();
+    st.className='parse-status parse-ok';
+    st.textContent=`✓ Extracted ${gg.length} holes from Golf Genius column format (yardage + par).`;
+    return;
+  }
   const rows=parseScorecardMultiTee(text);
   const fullRows=rows.filter(r=>r.yards.length>=18);
   const labeled=fullRows.filter(r=>r.label);
