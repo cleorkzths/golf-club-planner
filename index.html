@@ -2286,7 +2286,7 @@ function tocClick(e,el){
 function exportRoundHTML(){
   if(!roundPlan?.holeResults?.length){alert('Generate a round plan first.');return;}
   const courseName=document.getElementById('courseName').value||'Golf Course';
-  const roundDate=document.getElementById('roundDate').value||'';
+  const roundDate=document.getElementById('playDate').value||'';
   const altFt=parseFloat(document.getElementById('courseAltitude').value)||0;
   const temp=parseFloat(document.getElementById('temperature').value)||70;
   const windSpd=parseFloat(document.getElementById('windSpeed').value)||0;
