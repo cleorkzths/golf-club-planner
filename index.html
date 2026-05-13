@@ -572,11 +572,11 @@
         <div class="about-card-body">
           <p>Wind factor is multiplied on top of the temperature-adjusted carry. Headwind hurts more than tailwind helps. When GPS hole bearings are available, diagonal winds are <strong>vector-decomposed</strong> into parallel and perpendicular components so both effects apply simultaneously.</p>
           <table class="about-source-table" style="margin-bottom:.7rem;">
-            <thead><tr><th>Component</th><th>Formula (speed capped at 40 mph)</th><th>Full-wind cap</th></tr></thead>
+            <thead><tr><th>Component</th><th>Formula (speed capped at 40 mph)</th><th>Cap</th></tr></thead>
             <tbody>
-              <tr><td>Headwind (parallel)</td><td><span class="formula">1 − 0.01 × spd × |cos θ|</span></td><td>−25 % at 40 mph</td></tr>
-              <tr><td>Tailwind (parallel)</td><td><span class="formula">1 + 0.007 × spd × cos θ</span></td><td>+28 % at 40 mph</td></tr>
-              <tr><td>Crosswind (perpendicular)</td><td><span class="formula">1 − 0.0015 × spd × |sin θ|</span></td><td>−6 % at 40 mph</td></tr>
+              <tr><td>Headwind (parallel)</td><td><span class="formula">1 − 0.01 × spd × |cos θ|</span></td><td>floor −25% (kicks in at 25 mph)</td></tr>
+              <tr><td>Tailwind (parallel)</td><td><span class="formula">1 + 0.007 × spd × cos θ</span></td><td>+28% at 40 mph</td></tr>
+              <tr><td>Crosswind (perpendicular)</td><td><span class="formula">1 − 0.0015 × spd × |sin θ|</span></td><td>−6% at 40 mph</td></tr>
             </tbody>
           </table>
           <p style="font-size:.85em;color:var(--muted)">θ = angle between hole bearing and wind direction. Combined factor = tailwind component × crosswind component.</p>
@@ -591,6 +591,25 @@
             <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 1.105 = 166 yds</span><span class="calc-note">&nbsp;(+16 yds)</span></div>
           </div>
           <p>Roll is also wind-adjusted: headwind 0.5×, tailwind 1.5×, crosswind/calm 1.0×.</p>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-card-head">Altitude Adjustment</div>
+        <div class="about-card-body">
+          <p>Thinner air at altitude reduces drag, so the ball carries farther. The model applies a linear approximation of +2% carry per 1,000 ft above sea level.</p>
+          <p><span class="formula">factor = 1 + altitude_ft / 50,000</span></p>
+          <div class="calc-block">
+            <strong>Example — 7-iron (150 yd) at 5,280 ft (Denver)</strong>
+            <div class="calc-example-row"><span class="calc-label">Factor:</span><span class="calc-val">1 + 5280 / 50000 = 1.106</span></div>
+            <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 1.106 = 166 yds</span><span class="calc-note">&nbsp;(+16 yds)</span></div>
+          </div>
+          <div class="calc-block">
+            <strong>Example — same club at 2,000 ft</strong>
+            <div class="calc-example-row"><span class="calc-label">Factor:</span><span class="calc-val">1 + 2000 / 50000 = 1.040</span></div>
+            <div class="calc-example-row"><span class="calc-label">Carry:</span><span class="calc-val">150 × 1.040 = 156 yds</span><span class="calc-note">&nbsp;(+6 yds)</span></div>
+          </div>
+          <p>Altitude is auto-fetched from the Open-Meteo elevation API when you select a course, and can be overridden manually in Step 5.</p>
         </div>
       </div>
 
