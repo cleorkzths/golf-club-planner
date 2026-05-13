@@ -495,6 +495,10 @@
           </div>
         </div>
       </div>
+      <div class="card" style="margin-top:1.5rem;">
+        <div class="card-head"><h2>Carry Adjustment by Hour <span style="font-size:.8rem;font-weight:400;opacity:.7">(temp + altitude, excl. wind &amp; slope)</span></h2></div>
+        <div class="card-body" id="adjByHourBody" style="overflow-x:auto;"></div>
+      </div>
     </div>
   </div>
 
@@ -1354,6 +1358,36 @@ function renderWeatherCharts(){
   const hours=[...new Set(hoursArray)].slice(0,5);
   renderWindCompass(byHour,hours);
   renderTempChart(byHour,hours);
+  renderAdjByHour(byHour,hours);
+}
+
+function renderAdjByHour(byHour,hours){
+  const el=document.getElementById('adjByHourBody');if(!el)return;
+  const altFt=parseFloat(document.getElementById('courseAltitude')?.value)||0;
+  const af=altFactor(altFt);
+  const rows=hours.map(h=>{
+    const wx=byHour[h];if(!wx)return null;
+    const tf=tempFactor(wx.temp);
+    const combined=(tf*af-1)*100;
+    const sign=combined>=0?'+':'';
+    const color=combined>0?'#b45309':combined<0?'#1d4ed8':'#888';
+    const hLabel=String(h%12||12)+':00 '+(h<12?'AM':'PM');
+    return{hLabel,temp:wx.temp,combined,sign,color};
+  }).filter(Boolean);
+  if(!rows.length){el.innerHTML='<p style="color:var(--muted);font-size:.9rem;">No data.</p>';return;}
+  const altRow=altFt>0?`<tr><td colspan="2" style="font-size:.8rem;color:var(--muted);padding-top:.15rem;">Altitude ${altFt.toLocaleString()} ft → ${pct1((af-1)*100)} fixed bonus included in each figure</td></tr>`:'';
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:.92rem;">
+    <thead><tr style="border-bottom:1px solid #e5e7eb;">
+      <th style="text-align:left;padding:.35rem .5rem;font-weight:600;color:var(--muted);">Hour</th>
+      <th style="text-align:left;padding:.35rem .5rem;font-weight:600;color:var(--muted);">Temp</th>
+      <th style="text-align:left;padding:.35rem .5rem;font-weight:600;color:var(--muted);">Combined Adj</th>
+    </tr></thead>
+    <tbody>${rows.map(r=>`<tr style="border-bottom:1px solid #f3f4f6;">
+      <td style="padding:.35rem .5rem;">${r.hLabel}</td>
+      <td style="padding:.35rem .5rem;">${r.temp}°F</td>
+      <td style="padding:.35rem .5rem;font-weight:700;color:${r.color};">${r.sign}${Math.abs(r.combined).toFixed(1)}%</td>
+    </tr>`).join('')}</tbody>
+  </table>${altRow}`
 }
 
 function renderWindCompass(byHour,hours){
