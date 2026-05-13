@@ -2301,13 +2301,16 @@ function exportRoundHTML(){
   const ON_GRN=20;
   const shotPlanHtml=roundPlan.holeResults.map(hr=>{
     const slopeNote=hr.elevAdjYards?` · ${hr.elevAdjYards>0?'+':''}${hr.elevAdjYards} yds slope`:'';
+    const firstShot=hr.shots[0];
+    const windAdj=firstShot?.windAdj||0;
+    const windNote=windAdj!==0?` · ${windAdj>0?'+':''}${windAdj} yds wind`:'';
     const shots=hr.shots.map(s=>{
       const rollStr=s.roll>0?` (+${s.roll} roll)`:'';
       const onGreen=s.remaining<=ON_GRN;
       const leftStr=s.remaining<0?`✓ ${Math.abs(s.remaining)} yds past`:s.remaining===0?'✓ On pin':onGreen?`✓ ${s.remaining} yds away`:`${s.remaining} yds left`;
       return `<div class="shot-row"><span class="shot-num">Shot ${s.shotNum}</span><span class="shot-club">${s.club}</span><span class="shot-dist">${s.total} yds${rollStr}</span><span class="shot-left${onGreen?' on-green':''}">${leftStr}</span></div>`;
     }).join('');
-    return `<div class="hole-card"><div class="hole-hdr">Hole ${hr.hole} &nbsp;·&nbsp; Par ${hr.par} &nbsp;·&nbsp; ${hr.holeDist} yds${slopeNote}</div>${shots}</div>`;
+    return `<div class="hole-card"><div class="hole-hdr">Hole ${hr.hole} &nbsp;·&nbsp; Par ${hr.par} &nbsp;·&nbsp; ${hr.holeDist} yds${slopeNote}${windNote}</div>${shots}</div>`;
   }).join('');
 
   // Histogram
@@ -2316,9 +2319,13 @@ function exportRoundHTML(){
   const maxCnt=Math.max(...Object.values(usage));
   const histHtml=sorted.map(([club,count])=>`<div class="hist-row"><div class="hist-lbl">${club}</div><div class="hist-bg"><div class="hist-bar" style="width:${(count/maxCnt)*100}%"></div></div><div class="hist-cnt">${count}×</div></div>`).join('');
 
-  // Weather adj table
+  // Weather: compass SVG + adj table
   let wxHtml='<p style="color:#888;font-size:.88rem;">No weather data loaded.</p>';
   if(lastWxChartData){
+    // Ensure charts are rendered so we can grab the SVG
+    renderWeatherCharts();
+    const compassSvg=document.getElementById('windCompass')?.outerHTML||'';
+    const legendHtml=document.getElementById('windLegend')?.innerHTML||'';
     const{byHour,hoursArray}=lastWxChartData;
     const hours=[...new Set(hoursArray)].slice(0,5);
     const rows=hours.map(h=>{
@@ -2329,8 +2336,12 @@ function exportRoundHTML(){
       const hLbl=String(h%12||12)+':00 '+(h<12?'AM':'PM');
       return `<tr><td>${hLbl}</td><td>${wx.temp}°F</td><td style="font-weight:700;color:${color};">${sign}${Math.abs(combined).toFixed(1)}%</td></tr>`;
     }).join('');
-    wxHtml=`<table class="wx-tbl"><thead><tr><th>Hour</th><th>Temp</th><th>Carry Adj</th></tr></thead><tbody>${rows}</tbody></table>`;
-    if(altFt>0)wxHtml+=`<p style="font-size:.78rem;color:#888;margin-top:.5rem;">Altitude ${altFt.toLocaleString()} ft → ${pct1((af-1)*100)} fixed bonus included.</p>`;
+    const adjTable=`<table class="wx-tbl"><thead><tr><th>Hour</th><th>Temp</th><th>Carry Adj</th></tr></thead><tbody>${rows}</tbody></table>`
+      +(altFt>0?`<p style="font-size:.78rem;color:#888;margin-top:.5rem;">Altitude ${altFt.toLocaleString()} ft → ${pct1((af-1)*100)} fixed bonus included.</p>`:'');
+    wxHtml=`<div style="display:flex;flex-direction:column;align-items:center;margin-bottom:1.25rem;">
+      <div style="max-width:280px;width:100%;">${compassSvg}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem .8rem;justify-content:center;font-size:.8rem;margin-top:.4rem;">${legendHtml}</div>
+    </div>${adjTable}`;
   }
 
   // Stats grid
@@ -2383,6 +2394,8 @@ header p{font-size:.82rem;opacity:.82;margin-top:.25rem;}
 .wx-tbl th{text-align:left;padding:.38rem .5rem;border-bottom:2px solid #e5e7eb;color:#666;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;}
 .wx-tbl td{padding:.38rem .5rem;border-bottom:1px solid #f3f4f6;}
 .sec-title{font-size:.9rem;font-weight:700;color:#14532d;margin-bottom:.7rem;}
+.wx-legend-item{display:flex;align-items:center;gap:.3rem;font-weight:600;color:#1a2e1a;}
+.wx-legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0;}
 </style>
 </head>
 <body>
