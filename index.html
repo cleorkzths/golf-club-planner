@@ -743,6 +743,21 @@ const COURSE_DB={
       'Red':{total:5198},
     },
   },
+  'steele canyon ranch vineyard':{
+    name:'Steele Canyon Golf Club (Ranch + Vineyard)',
+    location:'Jamul, CA',
+    matchKeys:['steele canyon'],
+    par:71,
+    // Ranch nine plays as holes 1-9, Vineyard nine as holes 10-18
+    pars:[4,4,4,3,5,4,4,3,5, 4,4,3,4,4,5,3,4,4],
+    tees:{
+      'Black':{total:6908,holes:[378,385,446,204,559,388,432,230,542, 418,328,236,421,412,582,168,383,396]},
+      'Blue': {total:6456,holes:[364,385,401,174,533,388,414,204,509, 418,328,173,347,393,519,168,351,387]},
+      'White':{total:6223,holes:[329,323,401,174,533,371,414,204,509, 396,276,173,347,393,519,150,351,360]},
+      'Gold': {total:5552,holes:[315,303,298,160,507,355,388,162,475, 377,251,151,304,353,461,125,284,283]},
+      'Red':  {total:4747,holes:[255,247,234,101,388,291,340,119,416, 350,221,133,264,342,402,106,264,274]},
+    },
+  },
 };
 
 function lookupCuratedCourse(name){
