@@ -750,6 +750,8 @@ const COURSE_DB={
     par:71,
     // Ranch nine plays as holes 1-9, Vineyard nine as holes 10-18
     pars:[4,4,4,3,5,4,4,3,5, 4,4,3,4,4,5,3,4,4],
+    // OSM stores each nine with ref "1 Ranch Course", "1 Vineyard Course", etc.
+    osmNines:[{contains:'ranch',offset:0},{contains:'vineyard',offset:9}],
     tees:{
       'Black':{total:6908,holes:[378,385,446,204,559,388,432,230,542, 418,328,236,421,412,582,168,383,396]},
       'Blue': {total:6456,holes:[364,385,401,174,533,388,414,204,509, 418,328,173,347,393,519,168,351,387]},
@@ -1026,7 +1028,7 @@ async function selectCourse(item,displayName){
     return;
   }
   try{
-    const holes=parseOverpassElements(data.elements);
+    const holes=parseOverpassElements(data.elements,curated?.osmNines);
     const count=Object.keys(holes).length;
     if(!count){
       apiStatus.overpass={...apiStatus.overpass,status:'error',note:'No hole data in OSM'};
@@ -1135,10 +1137,24 @@ function onTeeChange(){
 
 function pathLengthYards(geom){let d=0;for(let i=0;i<geom.length-1;i++)d+=haversineYards(geom[i].lat,geom[i].lon,geom[i+1].lat,geom[i+1].lon);return d;}
 
-function parseOverpassElements(elements){
+function parseOverpassElements(elements,osmNines){
   const holes={};
   for(const el of elements){
-    const ref=parseInt(el.tags?.ref);if(isNaN(ref)||ref<1||ref>18||holes[ref])continue;
+    const rawRef=el.tags?.ref||'';
+    const refNum=parseInt(rawRef);
+    if(isNaN(refNum)||refNum<1)continue;
+    let holeNum;
+    if(osmNines){
+      // Multi-nine course: ref tag includes nine name e.g. "3 Ranch Course"
+      const refLower=rawRef.toLowerCase();
+      const nine=osmNines.find(n=>refLower.includes(n.contains.toLowerCase()));
+      if(!nine)continue; // belongs to a nine we don't want (e.g. Canyon)
+      holeNum=refNum+nine.offset;
+    }else{
+      if(refNum>18||holes[refNum])continue;
+      holeNum=refNum;
+    }
+    if(holes[holeNum])continue;
     const par=el.tags?.par?parseInt(el.tags.par):null;
     let bearing=null,distYards=null,teeLat,teeLon,greenLat,greenLon;
     if(el.type==='way'&&el.geometry?.length>=2){
@@ -1152,7 +1168,7 @@ function parseOverpassElements(elements){
       const gm=el.members.find(m=>m.role==='green'&&m.geometry?.length);
       if(tm&&gm){const tc=centroid(tm.geometry),gc=centroid(gm.geometry);bearing=calcBearing(tc.lat,tc.lon,gc.lat,gc.lon);distYards=haversineYards(tc.lat,tc.lon,gc.lat,gc.lon);teeLat=tc.lat;teeLon=tc.lon;greenLat=gc.lat;greenLon=gc.lon;}
     }
-    if(bearing!==null)holes[ref]={bearing,par,distYards,teeLat,teeLon,greenLat,greenLon};
+    if(bearing!==null)holes[holeNum]={bearing,par,distYards,teeLat,teeLon,greenLat,greenLon};
   }
   return holes;
 }
