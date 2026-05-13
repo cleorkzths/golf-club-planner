@@ -714,12 +714,14 @@ const COURSE_DB={
     location:'La Jolla, CA',
     matchKeys:['torrey pines south','torrey pines golf course south'],
     par:72,
+    // Actual tee names: Black | Brown (→Blue) | Green (→White) | White (→Gold) | Yellow-L (→Red)
+    pars:[4,4,3,4,4,5,4,3,5, 4,3,4,5,4,4,3,4,5],
     tees:{
-      'Black':{total:7765},
-      'Blue':{total:7250},
-      'White':{total:6603},
-      'Gold':{total:6112},
-      'Red':{total:5552},
+      'Black':{total:7802,holes:[451,389,201,490,454,564,462,177,615, 454,225,505,621,437,517,227,443,570]},
+      'Blue': {total:7051,holes:[445,363,159,467,405,530,445,163,538, 375,204,462,523,419,397,209,422,525]}, // Brown tees
+      'White':{total:6628,holes:[419,329,142,448,394,499,424,155,510, 348,187,443,504,391,359,178,400,498]}, // Green tees
+      'Gold': {total:6145,holes:[409,323,142,384,382,449,387,139,457, 308,171,411,486,359,339,151,375,473]}, // White tees
+      'Red':  {total:5467,holes:[364,283,105,388,325,427,378, 92,432, 297,105,393,407,277,288,142,347,417]}, // Yellow tees
     },
   },
   'torrey pines north':{
