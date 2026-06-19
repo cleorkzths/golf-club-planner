@@ -1201,8 +1201,10 @@ async function fetchElevations(holes){
   });
 
   // Fetch from USGS 3DEP Elevation Point Query Service (parallel, one request per point)
+  // 6-second timeout per request so a slow/down USGS doesn't hang the whole flow
   const usgsResults=await Promise.all(pts.map(p=>
-    fetch(`https://epqs.nationalmap.gov/v1/json?x=${p.lon}&y=${p.lat}&wkid=4326&units=Meters&includeDate=false`)
+    fetch(`https://epqs.nationalmap.gov/v1/json?x=${p.lon}&y=${p.lat}&wkid=4326&units=Meters&includeDate=false`,
+      {signal:AbortSignal.timeout(6000)})
       .then(r=>r.json())
       .then(d=>(d.value!=null&&d.value>-9999)?parseFloat(d.value):null)
       .catch(()=>null)
