@@ -70,6 +70,7 @@
     .dir-badge,.slope-badge,.wx-badge{font-size:.76rem;font-weight:600;white-space:nowrap;}
     .subtotal-row{background:var(--green-pale);border-top:2px solid var(--green-mid);}
     .subtotal-row td{padding:.45rem .6rem;}
+    .saved-course-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:5px;border:1px solid var(--border);margin-bottom:.35rem;background:var(--card-bg);}
     .wx-badge{color:#1565c0;}
 
     /* ── Hole Diagrams Tab ── */
@@ -279,6 +280,19 @@
       </div>
       <div class="status-bar" id="weatherStatus"></div>
       <div class="wx-summary" id="wxSummary"></div>
+      <details style="margin-top:1.1rem;">
+        <summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--accent);user-select:none;list-style:none;display:flex;align-items:center;gap:.35rem;">
+          <span>▶</span> My Saved Courses
+        </summary>
+        <div style="margin-top:.65rem;">
+          <div id="savedCoursesList"></div>
+          <div style="margin-top:.7rem;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="saveUserCourse()">💾 Save Current Course</button>
+            <span id="saveCourseBadge" style="display:none;font-size:.78rem;color:var(--green,#1a6b2a);font-weight:700;">✓ Saved!</span>
+            <span style="font-size:.75rem;color:var(--muted);">Saves all tee yardages &amp; pars — auto-loads next time you search this course.</span>
+          </div>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -843,6 +857,74 @@ function applyCuratedYardages(curated){
   }
   updateYardageTotals();
 }
+/* ══ USER COURSE DATABASE ══ */
+const USER_COURSE_KEY='golfUserCourses_v1';
+function loadUserCourseDB(){try{return JSON.parse(localStorage.getItem(USER_COURSE_KEY)||'{}')}catch{return {};}}
+function saveUserCourseDB(db){try{localStorage.setItem(USER_COURSE_KEY,JSON.stringify(db));}catch(e){alert('Could not save: '+e.message);}}
+function lookupUserCourse(name){
+  if(!name)return null;
+  const db=loadUserCourseDB(),n=name.toLowerCase();
+  for(const k in db){if(n.includes(k)||k.includes(n))return db[k];}
+  return null;
+}
+function applyUserCourse(saved){
+  const tee=document.getElementById('teeColor').value;
+  const teeYards=saved.tees[tee]||saved.tees[Object.keys(saved.tees)[0]];
+  if(!teeYards||teeYards.length!==18)return;
+  const pars=saved.pars&&saved.pars.length===18?saved.pars:null;
+  for(let i=0;i<18;i++){
+    const tr=document.querySelector(`#holeBody tr[data-hole="${i+1}"]`);if(!tr)continue;
+    tr.querySelector('.hole-dist').value=teeYards[i]||'';
+    if(pars)tr.querySelector('.hole-par').value=String(pars[i]);
+    const map=Object.fromEntries(Object.entries(saved.tees).map(([t,ys])=>[t,ys[i]]));
+    tr.dataset.distByTee=JSON.stringify(map);
+  }
+  updateYardageTotals();
+}
+function saveUserCourse(){
+  const name=document.getElementById('courseName').value.trim();
+  if(!name){alert('Enter a course name first.');return;}
+  const tees={},pars=[];
+  const currentTee=document.getElementById('teeColor').value;
+  document.querySelectorAll('#holeBody tr[data-hole]').forEach(tr=>{
+    pars.push(parseInt(tr.querySelector('.hole-par').value)||4);
+    if(tr.dataset.distByTee){
+      try{const map=JSON.parse(tr.dataset.distByTee);for(const t in map){tees[t]=tees[t]||[];tees[t].push(map[t]||0);}}catch{}
+    }else{
+      const dist=parseInt(tr.querySelector('.hole-dist').value)||0;
+      tees[currentTee]=tees[currentTee]||[];tees[currentTee].push(dist);
+    }
+  });
+  if(!Object.values(tees).some(arr=>arr.some(v=>v>0))){alert('No yardages entered — fetch or paste a scorecard first.');return;}
+  const db=loadUserCourseDB();
+  const key=name.toLowerCase().replace(/\s+/g,' ').trim();
+  db[key]={name,savedAt:new Date().toISOString().slice(0,10),pars,tees};
+  saveUserCourseDB(db);renderSavedCoursesList();
+  const b=document.getElementById('saveCourseBadge');
+  if(b){b.style.display='inline';clearTimeout(b._t);b._t=setTimeout(()=>b.style.display='none',2200);}
+}
+function deleteUserCourse(key){
+  if(!confirm(`Remove "${key}" from your saved courses?`))return;
+  const db=loadUserCourseDB();delete db[key];saveUserCourseDB(db);renderSavedCoursesList();
+}
+function loadSavedCourse(key){
+  const db=loadUserCourseDB(),saved=db[key];if(!saved)return;
+  document.getElementById('courseName').value=saved.name;
+  applyUserCourse(saved);
+  const tees=Object.keys(saved.tees).join('/');
+  setStatus(document.getElementById('gpsStatus'),'ok',`✓ Loaded "${saved.name}" from My Courses (${tees} tees). Hit "Fetch Yardages" to also get GPS wind bearings.`);
+}
+function renderSavedCoursesList(){
+  const el=document.getElementById('savedCoursesList');if(!el)return;
+  const db=loadUserCourseDB(),keys=Object.keys(db);
+  if(!keys.length){el.innerHTML='<p style="color:var(--muted);font-size:.82rem;margin:.4rem 0 0;">No saved courses yet.</p>';return;}
+  el.innerHTML=keys.map(k=>`<div class="saved-course-row">
+    <div style="flex:1;min-width:0;"><strong>${db[k].name}</strong><br><span style="font-size:.72rem;color:var(--muted);">Saved ${db[k].savedAt} · tees: ${Object.keys(db[k].tees).join(', ')}</span></div>
+    <button class="btn btn-secondary" style="font-size:.75rem;padding:.2rem .6rem;white-space:nowrap;" onclick="loadSavedCourse('${k}')">Load</button>
+    <button class="btn" style="font-size:.75rem;padding:.2rem .5rem;background:#dc2626;color:#fff;border:none;cursor:pointer;border-radius:4px;" onclick="deleteUserCourse('${k}')">✕</button>
+  </div>`).join('');
+}
+
 const apiStatus={
   nominatim:{label:'Nominatim',desc:'Course Search',status:'unused',note:''},
   overpass:{label:'Overpass API',desc:'Hole GPS Geometry',status:'unused',note:''},
@@ -1058,9 +1140,13 @@ async function selectCourse(item,displayName){
   setStatus(sEl,'searching','🛰 Fetching yardages for this course from OpenStreetMap…');
   const csEl=document.getElementById('cardStatus');if(csEl)csEl.style.display='none';
 
-  // Check curated database first — if matched, seed per-tee totals
+  // Check user-saved courses first, then curated database
+  const userSaved=lookupUserCourse(displayName);
   const curated=lookupCuratedCourse(displayName);
-  if(curated){
+  if(userSaved){
+    courseDB=null;
+    setStatus(sEl,'searching',`🛰 Found "${userSaved.name}" in your saved courses. Fetching GPS bearings…`);
+  }else if(curated){
     courseDB=curated;
     setStatus(sEl,'searching',`🛰 Recognized "${curated.name}" in curated database. Fetching GPS hole geometry…`);
   }else{
@@ -1076,7 +1162,10 @@ async function selectCourse(item,displayName){
     data=res.data;
   }catch(e){
     apiStatus.overpass={...apiStatus.overpass,status:'error',note:e.message.slice(0,140)};
-    if(curated){
+    if(userSaved){
+      applyUserCourse(userSaved);
+      setStatus(sEl,'ok',`✓ Loaded "${userSaved.name}" from your saved courses. (Overpass unavailable — wind bearings not set.)`);
+    }else if(curated){
       // Even without OSM, we can populate yardages from the curated database
       applyCuratedYardages(curated);
       setStatus(sEl,'warning',`⚠ Overpass unreachable, using curated scorecard for ${curated.name}. (Network/CORS error: ${e.message.slice(0,120)})`);
@@ -1090,7 +1179,10 @@ async function selectCourse(item,displayName){
     const count=Object.keys(holes).length;
     if(!count){
       apiStatus.overpass={...apiStatus.overpass,status:'error',note:'No hole data in OSM'};
-      if(curated){
+      if(userSaved){
+        applyUserCourse(userSaved);
+        setStatus(sEl,'ok',`✓ No GPS holes in OSM, using your saved yardages for ${userSaved.name}.`);
+      }else if(curated){
         applyCuratedYardages(curated);
         setStatus(sEl,'ok',`✓ No GPS holes in OSM, using curated scorecard for ${curated.name}.`);
       }else{
@@ -1119,7 +1211,9 @@ async function selectCourse(item,displayName){
         di.title=curated?`${currentTee} tee · scaled to curated total`:'GPS straight-line estimate';
       }
     });
-    if(curated&&curated.pars&&curated.pars.length===18){
+    if(userSaved){
+      applyUserCourse(userSaved); // override GPS yardages with saved exact per-tee data
+    }else if(curated&&curated.pars&&curated.pars.length===18){
       curated.pars.forEach((p,idx)=>{
         const tr=document.querySelector(`#holeBody tr[data-hole="${idx+1}"]`);
         if(tr)tr.querySelector('.hole-par').value=String(p);
@@ -2329,6 +2423,7 @@ function tocClick(e,el){
 (function init(){
   populateClubs(loadBag()||DEFAULT_CLUBS);
   initHoleTable();adjNote();
+  renderSavedCoursesList();
   document.getElementById('playDate').valueAsDate=new Date();
   ['temperature','windSpeed','windDir','windEffect','courseAltitude'].forEach(id=>{
     document.getElementById(id).addEventListener('input',adjNote);
