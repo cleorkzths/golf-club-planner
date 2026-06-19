@@ -361,6 +361,10 @@
         </div>
       </div>
       <div id="parseStatus" class="parse-status"></div>
+      <div style="margin-top:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+        <button class="btn btn-secondary" id="flipNinesBtn" onclick="flipNines()" title="Swap front and back nine — use when starting on hole 10">↕ Flip Nines</button>
+        <span style="font-size:.78rem;color:var(--muted);">Starting on hole 10? Flip to put the back nine first.</span>
+      </div>
       <div style="margin-top:1.4rem;" class="table-wrap">
         <table>
           <thead>
@@ -687,6 +691,7 @@ let lastCourseItem=null;
 let lastWxChartData=null;
 let courseDB=null; // populated when a curated course is matched
 const holeElevProfiles={};
+let ninesFlipped=false;
 
 /* ══ CURATED COURSE DATABASE ══
    Per-tee total yardages for popular courses. When a course is recognized,
@@ -875,6 +880,8 @@ document.getElementById('clubBody').addEventListener('click',e=>{if(e.target.cla
 /* ══ HOLE TABLE ══ */
 document.getElementById('holeBody').addEventListener('input',e=>{if(e.target.classList.contains('hole-dist'))updateYardageTotals();});
 function initHoleTable(){
+  ninesFlipped=false;
+  const btn=document.getElementById('flipNinesBtn');if(btn)btn.textContent='↕ Flip Nines';
   const tb=document.getElementById('holeBody');tb.innerHTML='';
   for(let i=1;i<=18;i++){
     const tr=document.createElement('tr');tr.dataset.hole=i;
@@ -910,6 +917,50 @@ function updateYardageTotals(){
   const ft=document.getElementById('front9-total');if(ft)ft.textContent=fmt(f);
   const bt=document.getElementById('back9-total');if(bt)bt.textContent=fmt(b);
   const tt=document.getElementById('total-yds');if(tt)tt.textContent=f+b>0?f+b+'':'—';
+}
+function flipNines(){
+  ninesFlipped=!ninesFlipped;
+  for(let i=1;i<=9;i++){
+    const trA=document.querySelector(`#holeBody tr[data-hole="${i}"]`);
+    const trB=document.querySelector(`#holeBody tr[data-hole="${i+9}"]`);
+    if(!trA||!trB)continue;
+    // Swap form inputs
+    ['hole-dist','hole-par','hole-wind'].forEach(cls=>{
+      const a=trA.querySelector('.'+cls),b=trB.querySelector('.'+cls);
+      if(!a||!b)return;
+      const t=a.value;a.value=b.value;b.value=t;
+    });
+    // Swap dataset attributes
+    ['bearing','elevAdj','teeElev','greenElev','distByTee','teeLat','teeLon','greenLat','greenLon','wxTemp','wxWindSpd','wxWindDir'].forEach(k=>{
+      const va=trA.dataset[k],vb=trB.dataset[k];
+      if(vb!==undefined)trA.dataset[k]=vb;else delete trA.dataset[k];
+      if(va!==undefined)trB.dataset[k]=va;else delete trB.dataset[k];
+    });
+    // Swap badge text
+    ['dir-badge','slope-badge','wx-badge'].forEach(cls=>{
+      const a=trA.querySelector('.'+cls),b=trB.querySelector('.'+cls);
+      if(!a||!b)return;
+      const t=a.textContent;a.textContent=b.textContent;b.textContent=t;
+    });
+    // Swap elevation profiles
+    const pa=holeElevProfiles[String(i)],pb=holeElevProfiles[String(i+9)];
+    if(pb!==undefined)holeElevProfiles[String(i)]=pb;else delete holeElevProfiles[String(i)];
+    if(pa!==undefined)holeElevProfiles[String(i+9)]=pa;else delete holeElevProfiles[String(i+9)];
+  }
+  // Update Out/In labels
+  const frontEl=document.querySelector('#subtotal-front td:first-child');
+  const frontNote=document.querySelector('#subtotal-front td:nth-child(3)');
+  const backEl=document.querySelector('#subtotal-back td:first-child');
+  const backNote=document.querySelector('#subtotal-back td:nth-child(3)');
+  if(frontEl)frontEl.innerHTML=`<strong>${ninesFlipped?'In':'Out'}</strong>`;
+  if(frontNote)frontNote.textContent=ninesFlipped?'Back 9 (played first)':'Front 9';
+  if(backEl)backEl.innerHTML=`<strong>${ninesFlipped?'Out':'In'}</strong>`;
+  if(backNote)backNote.textContent=ninesFlipped?'Front 9 (played second)':'Back 9';
+  // Update button
+  const btn=document.getElementById('flipNinesBtn');
+  if(btn)btn.textContent=ninesFlipped?'↕ Unflip Nines':'↕ Flip Nines';
+  updateYardageTotals();
+  if(document.querySelector('#holeBody tr[data-bearing]'))updateHoleWinds();
 }
 function getHoles(){
   return Array.from(document.querySelectorAll('#holeBody tr[data-hole]')).map(tr=>({
